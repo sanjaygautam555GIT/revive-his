@@ -3,13 +3,13 @@ async function renderPurchaseRegister(){
   el.innerHTML=`
     <div class="panel">
       <h2>Pharmacy Purchase Register</h2>
-      <p>Enter medicine purchase invoices. This saves purchase records and increases pharmacy stock.</p>
+      <p>Select supplier and medicine from master lists. Purchase saves record and increases pharmacy stock.</p>
       <form id="purchaseForm">
         <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-          <div><label>Supplier</label><input id="purchaseSupplier" required></div>
+          <div><label>Supplier</label><select id="purchaseSupplier" required><option value="">Loading suppliers...</option></select></div>
           <div><label>Invoice No</label><input id="purchaseInvoice" required></div>
           <div><label>Invoice Date</label><input id="purchaseDate" type="date" value="${todayISO()}" required></div>
-          <div><label>Medicine Name</label><input id="purchaseMedicine" required></div>
+          <div><label>Medicine Name</label><select id="purchaseMedicine" required><option value="">Loading medicines...</option></select></div>
           <div><label>Category</label><input id="purchaseCategory" placeholder="Tablet / Injection / Syrup"></div>
           <div><label>Batch No</label><input id="purchaseBatch"></div>
           <div><label>Expiry Date</label><input id="purchaseExpiry" type="date"></div>
@@ -31,7 +31,31 @@ async function renderPurchaseRegister(){
     <div class="panel table-wrap"><h3>Recent Purchases</h3><table><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Medicine</th><th>Batch</th><th>Qty</th><th>Total</th><th>Status</th></tr></thead><tbody id="purchaseRows"></tbody></table></div>
   `;
   document.getElementById("purchaseForm").onsubmit=savePurchaseRegister;
+  await loadPurchaseMasters();
   await loadPurchases();
+}
+
+async function loadPurchaseMasters(){
+  const sup=document.getElementById("purchaseSupplier");
+  const med=document.getElementById("purchaseMedicine");
+  const [supRes,medRes]=await Promise.all([
+    db.from("suppliers").select("*").order("supplier_name",{ascending:true}),
+    db.from("medicine_master").select("*").order("medicine_name",{ascending:true})
+  ]);
+  if(supRes.error){sup.innerHTML=`<option value="">Supplier load failed</option>`;}else{
+    sup.innerHTML=`<option value="">Select supplier</option>`+(supRes.data||[]).map(r=>`<option value="${r.supplier_name||""}">${r.supplier_name||""}</option>`).join("");
+  }
+  if(medRes.error){med.innerHTML=`<option value="">Medicine load failed</option>`;}else{
+    window.purchaseMedicineMaster=medRes.data||[];
+    med.innerHTML=`<option value="">Select medicine</option>`+window.purchaseMedicineMaster.map(r=>`<option value="${r.medicine_name||""}">${r.medicine_name||""}${r.strength?" - "+r.strength:""}</option>`).join("");
+    med.onchange=()=>{
+      const m=window.purchaseMedicineMaster.find(x=>x.medicine_name===med.value);
+      if(!m)return;
+      document.getElementById("purchaseCategory").value=m.category||m.unit||"";
+      document.getElementById("purchasePrice").value=m.default_purchase_price||0;
+      document.getElementById("purchaseSalePrice").value=m.default_sale_price||0;
+    };
+  }
 }
 
 async function savePurchaseRegister(e){
@@ -44,10 +68,10 @@ async function savePurchaseRegister(e){
   const purchasePrice=Number(document.getElementById("purchasePrice").value||0);
   const total=qty*purchasePrice;
   const purchase={
-    supplier:document.getElementById("purchaseSupplier").value.trim(),
+    supplier:document.getElementById("purchaseSupplier").value,
     invoice_no:document.getElementById("purchaseInvoice").value.trim(),
     invoice_date:document.getElementById("purchaseDate").value,
-    medicine_name:document.getElementById("purchaseMedicine").value.trim(),
+    medicine_name:document.getElementById("purchaseMedicine").value,
     category:document.getElementById("purchaseCategory").value.trim()||null,
     batch_no:document.getElementById("purchaseBatch").value.trim()||null,
     expiry_date:document.getElementById("purchaseExpiry").value||null,
@@ -68,6 +92,7 @@ async function savePurchaseRegister(e){
   msg.innerHTML=`<p class="success">Purchase saved and stock increased.</p>`;
   document.getElementById("purchaseForm").reset();
   document.getElementById("purchaseDate").value=todayISO();
+  await loadPurchaseMasters();
   await loadPurchases();
 }
 
