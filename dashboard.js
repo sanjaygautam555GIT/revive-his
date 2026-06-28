@@ -1,11 +1,11 @@
 async function loadDashboard(){
   const el=document.getElementById("dashboardView");
-  el.innerHTML="<div class='panel'>Loading Finance Command Center...</div>";
+  el.innerHTML="<div class='panel'>Loading Owner Command Center...</div>";
 
   try{
-    const [patients, admissions, ipdBills, expenses, stock, pharmacySales] = await Promise.all([
+    const [patients, admissions, ipdBills, expenses, stock, pharmacySales, purchases] = await Promise.all([
       fetchAll("patient"), fetchAll("ipd_admission"), fetchAll("ipd_billing"),
-      fetchAll("expenses"), fetchAll("pharmacy_stock"), fetchAll("pharmacy_sales")
+      fetchAll("expenses"), fetchAll("pharmacy_stock"), fetchAll("pharmacy_sales"), fetchAll("pharmacy_purchases")
     ]);
 
     const today = todayISO();
@@ -18,21 +18,29 @@ async function loadDashboard(){
     const isToday = (r, primary) => getDate(r, primary) === today;
     const isThisMonth = (r, primary) => getDate(r, primary).slice(0,7) === currentMonth;
     const sum = (rows, field) => rows.reduce((s,r)=>s+Number(r[field]||0),0);
+    const modeSum=(rows,field,mode)=>rows.filter(r=>(r.payment_mode||"").toLowerCase()===mode).reduce((s,r)=>s+Number(r[field]||0),0);
+    const bankSum=(rows,field)=>rows.filter(r=>(r.payment_mode||"").toLowerCase().includes("bank")).reduce((s,r)=>s+Number(r[field]||0),0);
 
     const opdToday = patients.filter(r => isToday(r,"created_at"));
     const ipdToday = admissions.filter(r => isToday(r,"created_at"));
     const ipdBillsToday = ipdBills.filter(r => isToday(r,"billing_date"));
     const expToday = expenses.filter(r => isToday(r,"expense_date"));
     const pharmToday = pharmacySales.filter(r => isToday(r,"bill_date"));
+    const purchaseToday = purchases.filter(r => isToday(r,"invoice_date"));
 
     const opdMonth = patients.filter(r => isThisMonth(r,"created_at"));
     const ipdBillsMonth = ipdBills.filter(r => isThisMonth(r,"billing_date"));
     const expMonth = expenses.filter(r => isThisMonth(r,"expense_date"));
     const pharmMonth = pharmacySales.filter(r => isThisMonth(r,"bill_date"));
 
-    const todayIncome = sum(opdToday,"amount") + sum(ipdBillsToday,"total") + sum(pharmToday,"amount_paid");
+    const opdIncomeToday = sum(opdToday,"amount");
+    const ipdIncomeToday = sum(ipdBillsToday,"total");
+    const pharmIncomeToday = sum(pharmToday,"amount_paid");
+    const purchaseTodayTotal = sum(purchaseToday,"total_amount");
+    const todayIncome = opdIncomeToday + ipdIncomeToday + pharmIncomeToday;
     const todayExpenses = sum(expToday,"amount");
     const todayProfit = todayIncome - todayExpenses;
+    const todayMargin = todayIncome>0 ? (todayProfit/todayIncome)*100 : 0;
 
     const monthIncome = sum(opdMonth,"amount") + sum(ipdBillsMonth,"total") + sum(pharmMonth,"amount_paid");
     const monthExpenses = sum(expMonth,"amount");
@@ -42,13 +50,12 @@ async function loadDashboard(){
     const overallExpenses = sum(expenses,"amount");
     const overallProfit = overallIncome - overallExpenses;
 
-    const allIncomeRowsToday = [
-      ...opdToday.map(r=>({mode:r.payment_mode, amount:r.amount})),
-      ...pharmToday.map(r=>({mode:r.payment_mode, amount:r.amount_paid}))
-    ];
-    const cashToday = allIncomeRowsToday.filter(r=>(r.mode||"").toLowerCase()==="cash").reduce((s,r)=>s+Number(r.amount||0),0);
-    const upiToday = allIncomeRowsToday.filter(r=>(r.mode||"").toLowerCase()==="upi").reduce((s,r)=>s+Number(r.amount||0),0);
-    const bankExpenseToday = expToday.filter(r=>(r.payment_mode||"").toLowerCase().includes("bank")).reduce((s,r)=>s+Number(r.amount||0),0);
+    const cashToday = modeSum(opdToday,"amount","cash") + modeSum(pharmToday,"amount_paid","cash");
+    const upiToday = modeSum(opdToday,"amount","upi") + modeSum(pharmToday,"amount_paid","upi");
+    const bankToday = bankSum(opdToday,"amount") + bankSum(pharmToday,"amount_paid");
+    const cashExpensesToday = modeSum(expToday,"amount","cash");
+    const upiExpensesToday = modeSum(expToday,"amount","upi");
+    const bankExpensesToday = bankSum(expToday,"amount");
 
     const purchaseStockValue = stock.reduce((s,r)=>s+(Number(r.purchase_price||0)*Number(r.quantity||0)),0);
     const saleStockValue = stock.reduce((s,r)=>s+(Number(r.sale_price||0)*Number(r.quantity||0)),0);
@@ -64,25 +71,34 @@ async function loadDashboard(){
     const expenseByCategory = groupSum(expenses, "category", "amount").slice(0,5);
     const opdByDepartment = groupCount(patients, "department").slice(0,5);
     const recentExpenses = expenses.slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,5);
+    const recentPharmacyBills = pharmacySales.slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,5);
 
     el.innerHTML = `
-      <div class="panel"><h2>Hospital Finance & Operations Command Center</h2><p>Owner view: broad financial, expenditure, earning, and pharmacy status.</p></div>
+      <div class="panel"><h2>Owner Executive Command Center</h2><p>One-screen view of hospital income, expenses, pharmacy, and operational activity.</p></div>
 
+      <div class="panel"><h3>Daily Financial Summary</h3></div>
       <div class="grid cards">
-        <div class="card"><span>Income Today</span><strong>${money(todayIncome)}</strong></div>
-        <div class="card"><span>Expenses Today</span><strong>${money(todayExpenses)}</strong></div>
+        <div class="card"><span>Total Income Today</span><strong>${money(todayIncome)}</strong></div>
+        <div class="card"><span>Total Expenses Today</span><strong>${money(todayExpenses)}</strong></div>
         <div class="card"><span>Profit / Loss Today</span><strong>${money(todayProfit)}</strong></div>
-        <div class="card"><span>Cash / UPI Today</span><strong>${money(cashToday)} / ${money(upiToday)}</strong></div>
+        <div class="card"><span>Profit Margin Today</span><strong>${todayMargin.toFixed(1)}%</strong></div>
+        <div class="card"><span>Cash Collection</span><strong>${money(cashToday)}</strong></div>
+        <div class="card"><span>UPI Collection</span><strong>${money(upiToday)}</strong></div>
+        <div class="card"><span>Bank Collection</span><strong>${money(bankToday)}</strong></div>
+        <div class="card"><span>Cash Expenses</span><strong>${money(cashExpensesToday)}</strong></div>
+      </div>
 
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
+        ${dashboardList("Revenue Today", [["OPD", money(opdIncomeToday), opdToday.length+" records"],["IPD Billing", money(ipdIncomeToday), ipdBillsToday.length+" bills"],["Pharmacy", money(pharmIncomeToday), pharmToday.length+" bills"],["Total", money(todayIncome), ""]])}
+        ${dashboardList("Payment Mode Split", [["Cash Collection", money(cashToday), "Cash expense: "+money(cashExpensesToday)],["UPI Collection", money(upiToday), "UPI expense: "+money(upiExpensesToday)],["Bank Collection", money(bankToday), "Bank expense: "+money(bankExpensesToday)]])}
+      </div>
+
+      <div class="panel"><h3>Monthly Performance</h3></div>
+      <div class="grid cards">
         <div class="card"><span>Monthly Income</span><strong>${money(monthIncome)}</strong></div>
         <div class="card"><span>Monthly Expenses</span><strong>${money(monthExpenses)}</strong></div>
         <div class="card"><span>Monthly Profit / Loss</span><strong>${money(monthProfit)}</strong></div>
-        <div class="card"><span>Bank Expenses Today</span><strong>${money(bankExpenseToday)}</strong></div>
-
-        <div class="card"><span>Overall Income</span><strong>${money(overallIncome)}</strong></div>
-        <div class="card"><span>Overall Expenses</span><strong>${money(overallExpenses)}</strong></div>
         <div class="card"><span>Overall Profit / Loss</span><strong>${money(overallProfit)}</strong></div>
-        <div class="card"><span>Pharmacy Stock Sale Value</span><strong>${money(saleStockValue)}</strong></div>
       </div>
 
       <div class="panel"><h3>Hospital Activity Snapshot</h3></div>
@@ -91,6 +107,8 @@ async function loadDashboard(){
         <div class="card"><span>IPD Today / Total</span><strong>${ipdToday.length} / ${admissions.length}</strong></div>
         <div class="card"><span>IPD Bills Today / Total</span><strong>${ipdBillsToday.length} / ${ipdBills.length}</strong></div>
         <div class="card"><span>Pharmacy Bills Today / Total</span><strong>${pharmToday.length} / ${pharmacySales.length}</strong></div>
+        <div class="card"><span>Purchase Rows Today</span><strong>${purchaseToday.length}</strong></div>
+        <div class="card"><span>Purchase Value Today</span><strong>${money(purchaseTodayTotal)}</strong></div>
       </div>
 
       <div class="panel"><h3>Pharmacy Business Status</h3></div>
@@ -114,10 +132,10 @@ async function loadDashboard(){
         ${dashboardList("Top Expense Categories", expenseByCategory.map(r=>[r.key, money(r.value), ""]))}
         ${dashboardList("OPD by Department", opdByDepartment.map(r=>[r.key, r.value, "records"]))}
         ${dashboardList("Recent Expenses", recentExpenses.map(r=>[r.expense_date||rowDate(r), r.category, money(r.amount||0)]))}
-        ${dashboardList("Financial Summary", [["Today Profit/Loss", money(todayProfit), ""],["Monthly Profit/Loss", money(monthProfit), ""],["Overall Profit/Loss", money(overallProfit), ""]])}
+        ${dashboardList("Recent Pharmacy Bills", recentPharmacyBills.map(r=>[r.bill_date||rowDate(r), r.patient_name, money(r.bill_amount||r.amount_paid||0)]))}
       </div>
 
-      <div class="panel"><b>${ROLE_LABELS[currentUser.role]}</b><p class="success">Executive Dashboard v3 focuses on finance, expenses, earnings, pharmacy value, and broad hospital operations.</p></div>
+      <div class="panel"><b>${ROLE_LABELS[currentUser.role]}</b><p class="success">Owner dashboard now includes the daily financial summary directly.</p></div>
     `;
   }catch(e){
     el.innerHTML=`<div class='panel error'>Dashboard error: ${e.message}</div>`;
