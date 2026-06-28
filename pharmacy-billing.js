@@ -1,5 +1,6 @@
 let pharmacyBillItems=[];
 let pharmacyStockRows=[];
+let billAmountPaidEdited=false;
 
 async function renderPharmacyBilling(){
   const el=document.getElementById("pharmacyBillingView");
@@ -12,7 +13,7 @@ async function renderPharmacyBilling(){
         <div><label>Patient Type</label><select id="billPatientType"><option>Walk-in</option><option>OPD</option><option>IPD</option><option>Staff</option></select></div>
         <div><label>Bill Date</label><input id="billDate" type="date" value="${todayISO()}"></div>
         <div><label>Payment Mode</label><select id="billPaymentMode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Credit</option></select></div>
-        <div><label>Payment Status</label><select id="billPaymentStatus"><option>Paid</option><option>Due</option><option>Partial</option></select></div>
+        <div><label>Payment Status</label><select id="billPaymentStatus"><option>Paid</option><option>Due</option></select></div>
         <div><label>Amount Paid</label><input id="billAmountPaid" type="number" value="0" step="0.01"></div>
       </div>
     </div>
@@ -47,13 +48,16 @@ async function renderPharmacyBilling(){
     <div class="panel table-wrap"><h3>Recent Pharmacy Bills</h3><table><thead><tr><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Paid</th><th>Due</th><th>Mode</th><th>Status</th></tr></thead><tbody id="salesRows"></tbody></table></div>
   `;
   pharmacyBillItems=[];
+  billAmountPaidEdited=false;
   await loadBillingStock();
   document.getElementById("billStockSelect").onchange=selectBillingStock;
   document.getElementById("billQty").oninput=updateBillLineTotal;
   document.getElementById("billSalePrice").oninput=updateBillLineTotal;
+  document.getElementById("billAmountPaid").oninput=()=>{billAmountPaidEdited=true;};
+  document.getElementById("billPaymentStatus").onchange=()=>{if(document.getElementById("billPaymentStatus").value==="Due"){billAmountPaidEdited=true;document.getElementById("billAmountPaid").value=0;}else{billAmountPaidEdited=false;renderBillItems();}};
   document.getElementById("addBillItemBtn").onclick=addPharmacyBillItem;
   document.getElementById("saveBillBtn").onclick=savePharmacyBill;
-  document.getElementById("clearBillBtn").onclick=()=>{pharmacyBillItems=[];renderBillItems();};
+  document.getElementById("clearBillBtn").onclick=()=>{pharmacyBillItems=[];billAmountPaidEdited=false;renderBillItems();};
   renderBillItems();
   await loadPharmacySales();
 }
@@ -119,7 +123,8 @@ function renderBillItems(){
   const total=pharmacyBillItems.reduce((s,r)=>s+Number(r.total||0),0);
   document.getElementById("billGrandTotal").textContent=money(total);
   const paid=document.getElementById("billAmountPaid");
-  if(paid && Number(paid.value||0)===0) paid.value=total.toFixed(2);
+  const status=document.getElementById("billPaymentStatus");
+  if(paid && status && !billAmountPaidEdited && status.value==="Paid") paid.value=total.toFixed(2);
   body.innerHTML=pharmacyBillItems.length?pharmacyBillItems.map((r,i)=>`<tr><td>${r.medicine_name||""}</td><td>${r.batch_no||""}</td><td>${r.expiry_date||""}</td><td>${r.quantity}</td><td>${money(r.sale_price)}</td><td>${money(r.total)}</td><td><button type="button" class="secondary" onclick="removeBillItem(${i})">Remove</button></td></tr>`).join(""):"<tr><td colspan='7'>No medicine added.</td></tr>";
 }
 
@@ -130,8 +135,9 @@ async function savePharmacyBill(){
   }
   if(!pharmacyBillItems.length){alert("Add at least one medicine.");return;}
   const total=pharmacyBillItems.reduce((s,r)=>s+Number(r.total||0),0);
-  const paid=Number(document.getElementById("billAmountPaid").value||0);
-  const due=Math.max(total-paid,0);
+  const status=document.getElementById("billPaymentStatus").value;
+  const paid=status==="Due"?0:Number(document.getElementById("billAmountPaid").value||0);
+  const due=status==="Due"?total:Math.max(total-paid,0);
   const payload={
     patient_name:document.getElementById("billPatientName").value.trim()||"Walk-in",
     patient_type:document.getElementById("billPatientType").value,
@@ -139,7 +145,7 @@ async function savePharmacyBill(){
     bill_amount:total,
     amount_paid:paid,
     amount_due:due,
-    payment_status:document.getElementById("billPaymentStatus").value,
+    payment_status:status,
     payment_mode:document.getElementById("billPaymentMode").value,
     items_json:JSON.stringify(pharmacyBillItems),
     created_at:new Date().toISOString()
@@ -154,6 +160,7 @@ async function savePharmacyBill(){
   }
   msg.innerHTML=`<p class="success">Bill saved and stock deducted.</p>`;
   pharmacyBillItems=[];
+  billAmountPaidEdited=false;
   document.getElementById("billPatientName").value="Walk-in";
   document.getElementById("billAmountPaid").value=0;
   renderBillItems();
