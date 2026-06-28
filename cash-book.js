@@ -3,14 +3,16 @@ async function renderCashBook(){
   el.innerHTML=`
     <div class="panel">
       <h2>Cash Book / Daily Closing</h2>
-      <p>Daily closing calculates income, expenses, and closing cash from OPD, IPD billing, pharmacy sales, and expenses.</p>
+      <p>Daily closing calculates expected cash from opening cash, cash collections, and cash expenses. The accountant must enter the actual counted cash.</p>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
         <div><label>Closing Date</label><input id="closingDate" type="date" value="${todayISO()}"></div>
         <div><label>Opening Cash</label><input id="openingCash" type="number" value="0" step="0.01"></div>
-        <div><label>Actual Cash in Drawer</label><input id="actualCash" type="number" value="0" step="0.01"></div>
+        <div><label>Actual Cash Counted</label><input id="actualCash" type="number" value="0" step="0.01"></div>
         <div><label>Remarks</label><input id="closingRemarks" placeholder="Optional note"></div>
       </div>
-      <br><button id="loadClosingBtn" type="button">Load Day Summary</button>
+      <br>
+      <button id="usePrevClosingBtn" type="button" class="secondary">Use Previous Closing as Opening</button>
+      <button id="loadClosingBtn" type="button">Load Day Summary</button>
       <button id="saveClosingBtn" type="button">Save Daily Closing</button>
       <div id="closingMessage"></div>
     </div>
@@ -19,8 +21,26 @@ async function renderCashBook(){
   `;
   document.getElementById("loadClosingBtn").onclick=loadCashBookDay;
   document.getElementById("saveClosingBtn").onclick=saveDailyClosing;
+  document.getElementById("usePrevClosingBtn").onclick=usePreviousClosingAsOpening;
+  document.getElementById("openingCash").oninput=loadCashBookDay;
+  document.getElementById("actualCash").oninput=updateCashDifferencePreview;
+  await usePreviousClosingAsOpening(false);
   await loadCashBookDay();
   await loadRecentClosings();
+}
+
+async function usePreviousClosingAsOpening(showMessage=true){
+  const {data,error}=await db.from("daily_closing").select("*").order("closing_date",{ascending:false}).limit(1);
+  const msg=document.getElementById("closingMessage");
+  if(error){if(showMessage)msg.innerHTML=`<p class='error'>Previous closing load failed: ${error.message}</p>`;return;}
+  const prev=(data||[])[0];
+  if(prev){
+    document.getElementById("openingCash").value=Number(prev.actual_cash||prev.expected_closing_cash||0).toFixed(2);
+    if(showMessage)msg.innerHTML=`<p class='success'>Opening cash loaded from previous closing date ${prev.closing_date}.</p>`;
+    await loadCashBookDay(false);
+  }else if(showMessage){
+    msg.innerHTML="<p class='error'>No previous closing found. Enter opening cash manually.</p>";
+  }
 }
 
 async function getCashBookNumbers(date){
@@ -61,14 +81,17 @@ async function loadCashBookDay(){
   try{
     const n=await getCashBookNumbers(date);
     const opening=Number(document.getElementById("openingCash").value||0);
+    const actual=Number(document.getElementById("actualCash").value||0);
     const expected=opening+n.cashCollection-n.expCash;
-    document.getElementById("actualCash").value=expected.toFixed(2);
+    const difference=actual-expected;
     output.innerHTML=`
       <div class="grid cards">
         <div class="card"><span>Opening Cash</span><strong>${money(opening)}</strong></div>
         <div class="card"><span>Cash Collection</span><strong>${money(n.cashCollection)}</strong></div>
         <div class="card"><span>Cash Expenses</span><strong>${money(n.expCash)}</strong></div>
         <div class="card"><span>Expected Closing Cash</span><strong>${money(expected)}</strong></div>
+        <div class="card"><span>Actual Cash Counted</span><strong id="actualCashPreview">${money(actual)}</strong></div>
+        <div class="card"><span>Cash Difference</span><strong id="cashDifferencePreview">${money(difference)}</strong></div>
         <div class="card"><span>UPI Collection</span><strong>${money(n.upiCollection)}</strong></div>
         <div class="card"><span>Bank Collection</span><strong>${money(n.bankCollection)}</strong></div>
         <div class="card"><span>Total Income</span><strong>${money(n.totalIncome)}</strong></div>
@@ -87,6 +110,10 @@ async function loadCashBookDay(){
         <tr><td>Expense Cash / UPI / Bank</td><td>${money(n.expCash)}</td><td>${money(n.expUpi)} / ${money(n.expBank)}</td></tr>
       </tbody></table></div>`;
   }catch(e){output.innerHTML=`<div class='panel error'>Cash book error: ${e.message}</div>`;}
+}
+
+function updateCashDifferencePreview(){
+  loadCashBookDay();
 }
 
 async function saveDailyClosing(){
