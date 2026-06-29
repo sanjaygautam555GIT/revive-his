@@ -3,9 +3,9 @@ async function renderOPD(){
   el.innerHTML=`
     <div class="panel">
       <h2>OPD V2 – Registration & Fee Collection</h2>
-      <p>Finance-first OPD entry: patient registration, visit details, consultation fee, and live OPD register.</p>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr)">
-        <div><label>Mobile Search</label><input id="opdSearchMobile" placeholder="Enter mobile to search"></div>
+      <p>Fast reception entry: search patient, register visit, collect consultation fee, and update OPD register.</p>
+      <div class="grid" style="grid-template-columns:1.4fr auto 1fr 1fr">
+        <div><label>Search Patient</label><input id="opdSearchTerm" placeholder="Search by Name / Mobile / UHID"></div>
         <div><label>&nbsp;</label><button type="button" id="opdSearchBtn">Search Patient</button></div>
         <div><label>UHID</label><input id="opdUhid" readonly placeholder="Auto after save"></div>
         <div><label>Visit ID</label><input id="opdVisitId" readonly placeholder="Auto after save"></div>
@@ -27,16 +27,10 @@ async function renderOPD(){
       </div>
 
       <h3>Visit Details</h3>
-      <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="grid" style="grid-template-columns:repeat(3,1fr)">
         <div><label>Department</label><select id="opdDepartment"><option>Surgery</option><option>Oncosurgery</option><option>Gynecology</option><option>Gastro Surgery</option><option>Dermatology</option><option>General OPD</option></select></div>
         <div><label>Consultant</label><input id="opdConsultant" placeholder="Doctor name"></div>
         <div><label>Visit Type</label><select id="opdVisitType"><option>New</option><option>Follow-up</option></select></div>
-        <div><label>Status</label><select id="opdStatus"><option>Waiting</option><option>Completed</option></select></div>
-      </div>
-      <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-        <div><label>Chief Complaint</label><input id="opdComplaint"></div>
-        <div><label>Diagnosis</label><input id="opdDiagnosis"></div>
-        <div><label>Advice</label><input id="opdAdvice"></div>
       </div>
 
       <h3>Billing</h3>
@@ -54,10 +48,11 @@ async function renderOPD(){
 
     <div class="panel table-wrap">
       <h3>Today's OPD Register</h3>
-      <table><thead><tr><th>Token</th><th>Visit ID</th><th>UHID</th><th>Name</th><th>Department</th><th>Doctor</th><th>Fee</th><th>Mode</th><th>Status</th></tr></thead><tbody id="opdRows"></tbody></table>
+      <table><thead><tr><th>Token</th><th>Visit ID</th><th>UHID</th><th>Name</th><th>Department</th><th>Doctor</th><th>Fee</th><th>Mode</th></tr></thead><tbody id="opdRows"></tbody></table>
     </div>
   `;
   document.getElementById("opdSearchBtn").onclick=searchOPDPatient;
+  document.getElementById("opdSearchTerm").onkeydown=e=>{if(e.key==="Enter")searchOPDPatient()};
   document.getElementById("opdForm").onsubmit=saveOPDVisit;
   document.getElementById("opdResetBtn").onclick=clearOPDForm;
   ["opdFee","opdDiscount"].forEach(id=>document.getElementById(id).oninput=calculateOPDNet);
@@ -74,21 +69,30 @@ function calculateOPDNet(){
 }
 
 async function searchOPDPatient(){
-  const mobile=document.getElementById("opdSearchMobile").value.trim();
+  const term=document.getElementById("opdSearchTerm").value.trim();
+  const q=term.toLowerCase();
   const msg=document.getElementById("opdSearchResult");
-  if(!mobile){msg.innerHTML="<p class='error'>Enter mobile number to search.</p>";return;}
-  const {data,error}=await db.from("patient").select("*").eq("mobile",mobile).order("created_at",{ascending:false}).limit(1);
+  if(!term){msg.innerHTML="<p class='error'>Enter patient name, mobile or UHID to search.</p>";return;}
+  const {data,error}=await db.from("patient").select("*").order("created_at",{ascending:false}).limit(500);
   if(error){msg.innerHTML=`<p class='error'>Search failed: ${error.message}</p>`;return;}
-  const p=(data||[])[0];
-  if(!p){msg.innerHTML="<p class='error'>No previous patient found. Enter new patient details.</p>";document.getElementById("opdMobile").value=mobile;return;}
+  const p=(data||[]).find(x=>[(x.name||x.patient_name||""),(x.mobile||""),(x.uhid||x.patient_id||"")].join(" ").toLowerCase().includes(q));
+  if(!p){msg.innerHTML="<p class='error'>No previous patient found. Enter new patient details.</p>";document.getElementById("opdMobile").value=term;return;}
+  await loadPatientIntoOPD(p,msg);
+}
+
+async function loadPatientIntoOPD(p,msg){
   document.getElementById("opdPatientId").value=p.id||"";
   document.getElementById("opdUhid").value=p.uhid||p.patient_id||"";
   document.getElementById("opdName").value=p.name||p.patient_name||"";
   document.getElementById("opdAge").value=p.age||"";
   document.getElementById("opdSex").value=p.sex||p.gender||"Male";
-  document.getElementById("opdMobile").value=p.mobile||mobile;
+  document.getElementById("opdMobile").value=p.mobile||"";
   document.getElementById("opdAddress").value=p.address||"";
-  msg.innerHTML=`<p class='success'>Existing patient loaded: ${p.name||p.patient_name||"Patient"}</p>`;
+  const visits=await fetchAll("opd_visits");
+  const uhid=p.uhid||p.patient_id||"";
+  const patientVisits=visits.filter(v=>(v.uhid&&v.uhid===uhid)||(v.mobile&&v.mobile===p.mobile)||(v.patient_name&&v.patient_name===(p.name||p.patient_name)));
+  const last=patientVisits.map(v=>v.visit_date||rowDate(v)).filter(Boolean).sort().slice(-1)[0]||"-";
+  msg.innerHTML=`<div class='sync-box'><b>Existing patient loaded</b><br>UHID: ${uhid||"-"} &nbsp; | &nbsp; Name: ${p.name||p.patient_name||"Patient"} &nbsp; | &nbsp; Age: ${p.age||"-"} &nbsp; | &nbsp; Last Visit: ${last} &nbsp; | &nbsp; Total Visits: ${patientVisits.length}</div>`;
 }
 
 function generateUHID(){return `RVH-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`}
@@ -139,14 +143,11 @@ async function saveOPDVisit(e){
     department:document.getElementById("opdDepartment").value,
     consultant:document.getElementById("opdConsultant").value.trim(),
     visit_type:document.getElementById("opdVisitType").value,
-    complaint:document.getElementById("opdComplaint").value.trim(),
-    diagnosis:document.getElementById("opdDiagnosis").value.trim(),
-    advice:document.getElementById("opdAdvice").value.trim(),
     fee:safeNumber(document.getElementById("opdFee").value),
     discount:safeNumber(document.getElementById("opdDiscount").value),
     amount:safeNumber(document.getElementById("opdNetAmount").value),
     payment_mode:document.getElementById("opdPaymentMode").value,
-    status:document.getElementById("opdStatus").value,
+    status:"Registered",
     visit_date:todayISO(),
     created_at:new Date().toISOString()
   };
@@ -173,7 +174,7 @@ async function loadOPDRegister(){
   const body=document.getElementById("opdRows");
   if(!body)return;
   const {data,error}=await db.from("opd_visits").select("*").eq("visit_date",todayISO()).order("created_at",{ascending:true});
-  if(error){body.innerHTML=`<tr><td colspan='9' class='error'>${error.message}</td></tr>`;return;}
+  if(error){body.innerHTML=`<tr><td colspan='8' class='error'>${error.message}</td></tr>`;return;}
   const rows=data||[];
-  body.innerHTML=rows.length?rows.map((r,i)=>`<tr><td>${String(i+1).padStart(3,"0")}</td><td>${r.visit_id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.consultant||""}</td><td>${money(r.amount||0)}</td><td>${r.payment_mode||""}</td><td>${r.status||""}</td></tr>`).join(""):"<tr><td colspan='9'>No OPD visits today.</td></tr>";
+  body.innerHTML=rows.length?rows.map((r,i)=>`<tr><td>${String(i+1).padStart(3,"0")}</td><td>${r.visit_id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.consultant||""}</td><td>${money(r.amount||0)}</td><td>${r.payment_mode||""}</td></tr>`).join(""):"<tr><td colspan='8'>No OPD visits today.</td></tr>";
 }
