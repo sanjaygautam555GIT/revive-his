@@ -6,6 +6,9 @@ function bankModeSum(rows,field){return rows.filter(r=>(r.payment_mode||"").toLo
 function parseSaleItems(row){try{return JSON.parse(row.items_json||"[]")}catch(e){return []}}
 function pharmacySalesCost(rows){return rows.reduce((s,row)=>s+parseSaleItems(row).reduce((x,item)=>x+(safeNumber(item.purchase_price)*safeNumber(item.quantity)),0),0)}
 function pharmacySalesMRP(rows){return rows.reduce((s,row)=>s+safeNumber(row.amount_paid||row.bill_amount),0)}
+function depositAmount(row){return safeNumber(row.deposit_amount||row.advance)}
+function depositModeSum(rows,mode){return rows.filter(r=>(r.payment_mode||"").toLowerCase()===mode).reduce((s,r)=>s+depositAmount(r),0)}
+function depositBankSum(rows){return rows.filter(r=>(r.payment_mode||"").toLowerCase().includes("bank")).reduce((s,r)=>s+depositAmount(r),0)}
 function stockValuation(stock){
   const cleaned=stock.filter(r=>safeNumber(r.quantity)>0 && safeNumber(r.purchase_price)>=0 && safeNumber(r.sale_price)>=0);
   const purchaseValue=cleaned.reduce((s,r)=>s+(safeNumber(r.purchase_price)*safeNumber(r.quantity)),0);
@@ -13,25 +16,27 @@ function stockValuation(stock){
   const highValueRows=cleaned.filter(r=>(safeNumber(r.purchase_price)*safeNumber(r.quantity))>1000000);
   return {purchaseValue,saleValue,rows:cleaned,highValueRows};
 }
-function buildFinancialSummary({patients=[],opdVisits=[],ipdBills=[],expenses=[],pharmacySales=[],pharmacyPurchases=[],stock=[]},from,to){
+function buildFinancialSummary({patients=[],opdVisits=[],ipdAdmissions=[],ipdBills=[],expenses=[],pharmacySales=[],pharmacyPurchases=[],stock=[]},from,to){
   const opdSource=(opdVisits&&opdVisits.length)?opdVisits:patients;
   const opdDateField=(opdVisits&&opdVisits.length)?"visit_date":"created_at";
   const opd=opdSource.filter(r=>dateInRange(r,opdDateField,from,to));
+  const admissions=ipdAdmissions.filter(r=>dateInRange(r,"deposit_date",from,to)||dateInRange(r,"admission_date",from,to));
   const bills=ipdBills.filter(r=>dateInRange(r,"billing_date",from,to));
   const exp=expenses.filter(r=>dateInRange(r,"expense_date",from,to));
   const sales=pharmacySales.filter(r=>dateInRange(r,"bill_date",from,to));
   const purchases=pharmacyPurchases.filter(r=>dateInRange(r,"invoice_date",from,to));
   const opdRevenue=sumField(opd,"amount");
   const ipdRevenue=sumField(bills,"total");
+  const ipdDepositCollection=admissions.reduce((s,r)=>s+depositAmount(r),0);
   const pharmacyRevenue=pharmacySalesMRP(sales);
   const revenue=opdRevenue+ipdRevenue+pharmacyRevenue;
   const operatingExpenses=sumField(exp,"amount");
   const pharmacyCost=pharmacySalesCost(sales);
   const grossProfit=revenue-operatingExpenses-pharmacyCost;
   const cashOutflow=operatingExpenses+sumField(purchases,"total_amount");
-  const cashCollection=paymentModeSum(opd,"amount","cash")+paymentModeSum(sales,"amount_paid","cash");
-  const upiCollection=paymentModeSum(opd,"amount","upi")+paymentModeSum(sales,"amount_paid","upi");
-  const bankCollection=bankModeSum(opd,"amount")+bankModeSum(sales,"amount_paid");
+  const cashCollection=paymentModeSum(opd,"amount","cash")+paymentModeSum(sales,"amount_paid","cash")+depositModeSum(admissions,"cash");
+  const upiCollection=paymentModeSum(opd,"amount","upi")+paymentModeSum(sales,"amount_paid","upi")+depositModeSum(admissions,"upi");
+  const bankCollection=bankModeSum(opd,"amount")+bankModeSum(sales,"amount_paid")+depositBankSum(admissions);
   const stockValue=stockValuation(stock);
-  return {opd,bills,exp,sales,purchases,opdRevenue,ipdRevenue,pharmacyRevenue,revenue,operatingExpenses,pharmacyCost,grossProfit,cashOutflow,cashCollection,upiCollection,bankCollection,stockValue,margin:revenue>0?(grossProfit/revenue)*100:0};
+  return {opd,admissions,bills,exp,sales,purchases,opdRevenue,ipdRevenue,ipdDepositCollection,pharmacyRevenue,revenue,operatingExpenses,pharmacyCost,grossProfit,cashOutflow,cashCollection,upiCollection,bankCollection,stockValue,margin:revenue>0?(grossProfit/revenue)*100:0};
 }
