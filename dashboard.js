@@ -39,30 +39,30 @@ async function loadDashboard(){
     el.innerHTML=`
       <div class="dash-head"><div><h2>Dashboard V4.2 – Executive Command Center</h2><p>Revive Hospital · ${new Date().toLocaleDateString()} · Updated ${new Date().toLocaleTimeString()}</p></div><div class="score-box"><span>Performance</span><strong>${score}/100</strong><small>${scoreLabel}</small></div></div>
       <div class="kpi-grid compact">
-        ${kpiCard("Revenue",money(todaySummary.revenue),revenueChange!==null?`${revenueChange.toFixed(1)}% vs yesterday`:"today","success")}
-        ${kpiCard("Expenses",money(todaySummary.operatingExpenses),`${expToday.length} entries`,todaySummary.operatingExpenses>0?"warning":"info")}
+        ${kpiCard("Revenue Earned",money(todaySummary.revenue),revenueChange!==null?`${revenueChange.toFixed(1)}% vs yesterday`:"OPD + IPD bills + pharmacy","success")}
+        ${kpiCard("Collections Today",money(todaySummary.totalCollection),"cash received incl. IPD advance","analytics")}
         ${kpiCard("Net Profit",money(todaySummary.grossProfit),`Margin ${todaySummary.margin.toFixed(1)}%`,todaySummary.grossProfit>=0?"success":"danger")}
         ${kpiCard("Patients",totalPatientsToday,`OPD ${opdToday.length} · IPD ${ipdToday.length}`,"info")}
-        ${kpiCard("Cash",money(todaySummary.cashCollection),"today","success")}
-        ${kpiCard("UPI",money(todaySummary.upiCollection),"today","info")}
-        ${kpiCard("Bank",money(todaySummary.bankCollection),"today","info")}
+        ${kpiCard("Cash Collection",money(todaySummary.cashCollection),`earned ${money(todaySummary.earnedCashCollection)}`,"success")}
+        ${kpiCard("UPI Collection",money(todaySummary.upiCollection),`earned ${money(todaySummary.earnedUpiCollection)}`,"info")}
+        ${kpiCard("Bank Collection",money(todaySummary.bankCollection),`earned ${money(todaySummary.earnedBankCollection)}`,"info")}
+        ${kpiCard("IPD Advance",money(todaySummary.ipdAdvanceReceived),"not counted as revenue","warning")}
         ${kpiCard("Pharmacy",money(todaySummary.pharmacyRevenue),`${pharmToday.length} bills`,"analytics")}
         ${kpiCard("Stock",money(todaySummary.stockValue.purchaseValue),`${stock.length} rows`,"analytics")}
         ${kpiCard("Low Stock",lowStock.length,"Qty ≤ 10",lowStock.length?"warning":"success")}
         ${kpiCard("Expiry",expiringSoon.length,"next 30 days",expiringSoon.length?"warning":"success")}
-        ${kpiCard("IPD Billing",money(todaySummary.ipdRevenue),`${todaySummary.bills.length} bills`,"info")}
       </div>
       <div class="dashboard-main-grid">
         <div class="panel"><h3>Revenue Trend – 30 Days</h3>${miniBarChart(trend.map(r=>r.revenue),trend.map(r=>r.day.slice(5)),"Revenue")}</div>
         <div class="panel"><h3>Profit Trend – 30 Days</h3>${miniBarChart(trend.map(r=>r.profit),trend.map(r=>r.day.slice(5)),"Profit")}</div>
         <div class="panel table-wrap"><h3>Smart Alerts</h3><table><tbody>${alerts.slice(0,5).map(a=>`<tr><td>${alertIcon(a[0])}</td><td>${a[1]}</td><td>${a[2]}</td></tr>`).join("")}</tbody></table></div>
-        <div class="panel"><h3>Owner Insights</h3>${ownerInsights(todaySummary,monthSummary,revenueChange,pharmacyMargin,expiringSoon,lowStock).slice(0,5).map(x=>`<p>${x}</p>`).join("")}</div>
+        <div class="panel"><h3>Owner Insights</h3>${ownerInsights(todaySummary,monthSummary,revenueChange,pharmacyMargin,expiringSoon,lowStock).slice(0,6).map(x=>`<p>${x}</p>`).join("")}</div>
       </div>
       <div class="dashboard-secondary-grid">
-        ${compactList("Revenue Mix",[["OPD",money(todaySummary.opdRevenue)],["IPD",money(todaySummary.ipdRevenue)],["Pharmacy",money(todaySummary.pharmacyRevenue)]])}
+        ${compactList("Revenue Mix",[["OPD",money(todaySummary.opdRevenue)],["IPD final bills",money(todaySummary.ipdRevenue)],["Pharmacy",money(todaySummary.pharmacyRevenue)]])}
+        ${compactList("Collection Mix",[["Earned collection",money(todaySummary.earnedCollection)],["IPD advance",money(todaySummary.ipdAdvanceReceived)],["Total collection",money(todaySummary.totalCollection)]])}
         ${compactList("Hospital Status",[["OPD",opdToday.length],["IPD admissions",ipdToday.length],["Pharmacy bills",pharmToday.length],["Purchases",purchaseToday.length]])}
-        ${compactList("Pharmacy Intelligence",[["Gross margin",money(todaySummary.pharmacyRevenue-todaySummary.pharmacyCost)+" / "+pharmacyMargin.toFixed(1)+"%"],["Low stock",lowStock.length],["Expired / Expiring",expired.length+" / "+expiringSoon.length],["Top sold",topSoldRows[0]?.key||"No sales"]])}
-        ${compactList("Monthly Snapshot",[["Revenue",money(monthSummary.revenue)],["Expenses",money(monthSummary.operatingExpenses)],["Net",money(monthSummary.grossProfit)],["Purchases today",money(sumField(purchaseToday,"total_amount"))]])}
+        ${compactList("Monthly Snapshot",[["Revenue",money(monthSummary.revenue)],["Collections",money(monthSummary.totalCollection)],["IPD advances",money(monthSummary.ipdAdvanceReceived)],["Net",money(monthSummary.grossProfit)]])}
       </div>
       <details class="panel"><summary><b>More details</b></summary><div class="grid" style="grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px">${dashboardList("Top Expense Categories",expenseByCategory.map(r=>[r.key,money(r.value),""]))}${dashboardList("OPD by Department",opdByDepartment.map(r=>[r.key,r.value,"records"]))}</div></details>`;
   }catch(e){el.innerHTML=`<div class='panel error'>Dashboard error: ${e.message}</div>`;}
@@ -73,7 +73,7 @@ function alertIcon(type){return type==="critical"?"🔴":type==="warning"?"🟠"
 function miniBarChart(values,labels,title){const max=Math.max(...values.map(v=>Math.abs(safeNumber(v))),1);return `<div class="mini-chart">${values.map((v,i)=>{const h=Math.max(4,Math.round(Math.abs(safeNumber(v))/max*100));return `<div class="bar-col" title="${labels[i]} ${title}: ${money(v)}"><div class="bar ${v<0?"neg":""}" style="height:${h}%"></div><small>${i%5===0?labels[i]:""}</small></div>`}).join("")}</div>`;}
 function compactList(title,rows){return `<div class="panel compact-list"><h3>${title}</h3>${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join("")}</div>`}
 function performanceScore(summary,lowStock,expired,expiring,totalPatients){let s=70;if(summary.grossProfit>0)s+=10;else if(summary.revenue>0)s-=15;if(summary.revenue>0)s+=10;else s-=5;if(totalPatients>0)s+=5;if(lowStock.length)s-=5;if(expiring.length)s-=5;if(expired.length)s-=10;return Math.max(0,Math.min(100,Math.round(s)));}
-function ownerInsights(today,month,revenueChange,pharmacyMargin,expiring,lowStock){const out=[];out.push(`• Today revenue <b>${money(today.revenue)}</b>; net result <b>${money(today.grossProfit)}</b>.`);if(revenueChange!==null)out.push(`• Revenue is <b>${Math.abs(revenueChange).toFixed(1)}%</b> ${revenueChange>=0?"higher":"lower"} than yesterday.`);out.push(`• Pharmacy contributed <b>${today.revenue?((today.pharmacyRevenue/today.revenue)*100).toFixed(1):0}%</b> of today's revenue.`);out.push(`• Pharmacy margin today is <b>${pharmacyMargin.toFixed(1)}%</b>.`);if(expiring.length)out.push(`• <b>${expiring.length}</b> medicine rows are expiring within 30 days.`);if(lowStock.length)out.push(`• <b>${lowStock.length}</b> medicine rows are low stock.`);out.push(`• Monthly revenue <b>${money(month.revenue)}</b>; monthly net <b>${money(month.grossProfit)}</b>.`);return out;}
+function ownerInsights(today,month,revenueChange,pharmacyMargin,expiring,lowStock){const out=[];out.push(`• Revenue earned today <b>${money(today.revenue)}</b>; net result <b>${money(today.grossProfit)}</b>.`);out.push(`• Total collection today is <b>${money(today.totalCollection)}</b>, including IPD advance <b>${money(today.ipdAdvanceReceived)}</b>.`);if(revenueChange!==null)out.push(`• Revenue is <b>${Math.abs(revenueChange).toFixed(1)}%</b> ${revenueChange>=0?"higher":"lower"} than yesterday.`);out.push(`• Pharmacy contributed <b>${today.revenue?((today.pharmacyRevenue/today.revenue)*100).toFixed(1):0}%</b> of earned revenue.`);out.push(`• Pharmacy margin today is <b>${pharmacyMargin.toFixed(1)}%</b>.`);if(expiring.length)out.push(`• <b>${expiring.length}</b> medicine rows are expiring within 30 days.`);if(lowStock.length)out.push(`• <b>${lowStock.length}</b> medicine rows are low stock.`);out.push(`• Monthly revenue <b>${money(month.revenue)}</b>; monthly collections <b>${money(month.totalCollection)}</b>.`);return out;}
 function groupSum(rows,keyField,amountField){const map={};rows.forEach(r=>{const k=r[keyField]||"Unspecified";map[k]=(map[k]||0)+safeNumber(r[amountField])});return Object.entries(map).map(([key,value])=>({key,value})).sort((a,b)=>b.value-a.value)}
 function groupCount(rows,keyField){const map={};rows.forEach(r=>{const k=r[keyField]||"Unspecified";map[k]=(map[k]||0)+1});return Object.entries(map).map(([key,value])=>({key,value})).sort((a,b)=>b.value-a.value)}
 function dashboardList(title,rows){return `<div class="panel table-wrap"><h3>${title}</h3><table><tbody>${rows.length?rows.map(r=>`<tr><td>${r[0]||""}</td><td>${r[1]||""}</td><td>${r[2]||""}</td></tr>`).join(""):"<tr><td>No records</td></tr>"}</tbody></table></div>`}
