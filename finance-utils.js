@@ -13,8 +13,10 @@ function stockValuation(stock){
   const highValueRows=cleaned.filter(r=>(safeNumber(r.purchase_price)*safeNumber(r.quantity))>1000000);
   return {purchaseValue,saleValue,rows:cleaned,highValueRows};
 }
-function buildFinancialSummary({patients=[],ipdBills=[],expenses=[],pharmacySales=[],pharmacyPurchases=[],stock=[]},from,to){
-  const opd=patients.filter(r=>dateInRange(r,"created_at",from,to));
+function buildFinancialSummary({patients=[],opdVisits=[],ipdBills=[],expenses=[],pharmacySales=[],pharmacyPurchases=[],stock=[]},from,to){
+  const opdSource=(opdVisits&&opdVisits.length)?opdVisits:patients;
+  const opdDateField=(opdVisits&&opdVisits.length)?"visit_date":"created_at";
+  const opd=opdSource.filter(r=>dateInRange(r,opdDateField,from,to));
   const bills=ipdBills.filter(r=>dateInRange(r,"billing_date",from,to));
   const exp=expenses.filter(r=>dateInRange(r,"expense_date",from,to));
   const sales=pharmacySales.filter(r=>dateInRange(r,"bill_date",from,to));
