@@ -5,7 +5,7 @@ async function loadDashboard(){
     const [patients,opdVisits,admissions,ipdBills,expenses,stock,pharmacySales,purchases]=await Promise.all([fetchAll("patient"),fetchAll("opd_visits"),fetchAll("ipd_admission"),fetchAll("ipd_billing"),fetchAll("expenses"),fetchAll("pharmacy_stock"),fetchAll("pharmacy_sales"),fetchAll("pharmacy_purchases")]);
     const today=todayISO();
     const monthStart=today.slice(0,7)+"-01";
-    const all={patients,opdVisits,ipdBills,expenses,pharmacySales,pharmacyPurchases:purchases,stock};
+    const all={patients,opdVisits,ipdAdmissions:admissions,ipdBills,expenses,pharmacySales,pharmacyPurchases:purchases,stock};
     const monthSummary=buildFinancialSummary(all,monthStart,today);
     const todaySummary=buildFinancialSummary(all,today,today);
     const yesterday=new Date(today);yesterday.setDate(yesterday.getDate()-1);
