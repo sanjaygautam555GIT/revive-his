@@ -5,11 +5,11 @@ async function renderReportsCenter(){
   el.innerHTML=`
     <div class="panel">
       <h2>Reports & Analytics Center</h2>
-      <p>Financial calculations now separate operating profit, pharmacy COGS, cash flow, and current stock value.</p>
+      <p>Stage 2 adds Pharmacy Analytics, Operational Report, and Trend Summary.</p>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
         <div><label>From Date</label><input id="reportFrom" type="date" value="${monthStart}"></div>
         <div><label>To Date</label><input id="reportTo" type="date" value="${today}"></div>
-        <div><label>Report Type</label><select id="reportType"><option value="executive">Executive Report</option><option value="revenue">Revenue Report</option><option value="expense">Expense & Cash Flow Report</option></select></div>
+        <div><label>Report Type</label><select id="reportType"><option value="executive">Executive Report</option><option value="revenue">Revenue Report</option><option value="expense">Expense & Cash Flow Report</option><option value="pharmacy">Pharmacy Analytics</option><option value="operations">Operational Report</option><option value="trend">Trend Summary</option></select></div>
         <div><label>&nbsp;</label><button id="runReportBtn" type="button">Run Report</button></div>
       </div>
     </div>
@@ -30,7 +30,12 @@ async function getReportData(from,to){
     rows.forEach(r=>{const k=r[keyField]||"Unspecified";map[k]=(map[k]||0)+safeNumber(r[amountField])});
     return Object.entries(map).map(([key,value])=>({key,value})).sort((a,b)=>b.value-a.value);
   };
-  return {...summary,from,to,ipd,stock,expenseByCategory:groupSum(summary.exp,"category","amount"),opdByDepartment:groupSum(summary.opd,"department","amount"),purchaseBySupplier:groupSum(summary.purchases,"supplier","total_amount")};
+  const groupCount=(rows,keyField)=>{
+    const map={};
+    rows.forEach(r=>{const k=r[keyField]||"Unspecified";map[k]=(map[k]||0)+1});
+    return Object.entries(map).map(([key,value])=>({key,value})).sort((a,b)=>b.value-a.value);
+  };
+  return {...summary,from,to,ipd,stock,expenseByCategory:groupSum(summary.exp,"category","amount"),opdByDepartment:groupSum(summary.opd,"department","amount"),opdCountByDepartment:groupCount(summary.opd,"department"),purchaseBySupplier:groupSum(summary.purchases,"supplier","total_amount"),salesByPatientType:groupSum(summary.sales,"patient_type","amount_paid")};
 }
 
 async function runSelectedReport(){
@@ -44,6 +49,9 @@ async function runSelectedReport(){
     if(type==="executive") renderExecutiveReport(out,d);
     if(type==="revenue") renderRevenueReport(out,d);
     if(type==="expense") renderExpenseReport(out,d);
+    if(type==="pharmacy") renderPharmacyReport(out,d);
+    if(type==="operations") renderOperationalReport(out,d);
+    if(type==="trend") renderTrendReport(out,d);
   }catch(e){out.innerHTML=`<div class='panel error'>Report error: ${e.message}</div>`;}
 }
 
@@ -103,6 +111,80 @@ function renderExpenseReport(out,d){
       ${reportTable("Operating Expenses by Category",d.expenseByCategory.map(r=>[r.key,money(r.value),""]))}
       ${reportTable("Purchases by Supplier",d.purchaseBySupplier.map(r=>[r.key,money(r.value),""]))}
     </div>`;
+}
+
+function renderPharmacyReport(out,d){
+  const purchaseTotal=sumField(d.purchases,"total_amount");
+  const pharmacyGross=d.pharmacyRevenue-d.pharmacyCost;
+  const lowStock=d.stock.filter(r=>safeNumber(r.quantity)<=10);
+  const now=new Date();
+  const in30=new Date();in30.setDate(in30.getDate()+30);
+  const expired=d.stock.filter(r=>r.expiry_date && new Date(r.expiry_date)<now);
+  const expiring=d.stock.filter(r=>r.expiry_date && new Date(r.expiry_date)>=now && new Date(r.expiry_date)<=in30);
+  const topSold={};
+  d.sales.forEach(s=>parseSaleItems(s).forEach(i=>{const k=i.medicine_name||"Unknown";topSold[k]=(topSold[k]||0)+safeNumber(i.quantity)}));
+  const topSoldRows=Object.entries(topSold).map(([k,v])=>({key:k,value:v})).sort((a,b)=>b.value-a.value).slice(0,10);
+  out.innerHTML=`
+    <div class="panel"><h2>Pharmacy Analytics</h2><p>${d.from} to ${d.to}</p></div>
+    <div class="grid cards">
+      <div class="card"><span>Pharmacy Sales</span><strong>${money(d.pharmacyRevenue)}</strong></div>
+      <div class="card"><span>COGS</span><strong>${money(d.pharmacyCost)}</strong></div>
+      <div class="card"><span>Gross Margin</span><strong>${money(pharmacyGross)}</strong></div>
+      <div class="card"><span>Purchase Value</span><strong>${money(purchaseTotal)}</strong></div>
+      <div class="card"><span>Stock Cost Value</span><strong>${money(d.stockValue.purchaseValue)}</strong></div>
+      <div class="card"><span>Stock Sale Value</span><strong>${money(d.stockValue.saleValue)}</strong></div>
+      <div class="card"><span>Low Stock</span><strong>${lowStock.length}</strong></div>
+      <div class="card"><span>Expired / Expiring</span><strong>${expired.length} / ${expiring.length}</strong></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
+      ${reportTable("Top Sold Medicines",topSoldRows.map(r=>[r.key,r.value,"qty sold"]))}
+      ${reportTable("Low Stock Medicines",lowStock.slice(0,15).map(r=>[r.medicine_name,r.quantity,r.batch_no||""]))}
+      ${reportTable("Expiring Medicines",expiring.slice(0,15).map(r=>[r.medicine_name,r.expiry_date,r.quantity]))}
+      ${reportTable("Supplier Purchases",d.purchaseBySupplier.map(r=>[r.key,money(r.value),""]))}
+    </div>`;
+}
+
+function renderOperationalReport(out,d){
+  const avgOpd=d.opd.length?d.opdRevenue/d.opd.length:0;
+  const avgIpd=d.bills.length?d.ipdRevenue/d.bills.length:0;
+  const avgPharm=d.sales.length?d.pharmacyRevenue/d.sales.length:0;
+  out.innerHTML=`
+    <div class="panel"><h2>Operational Report</h2><p>${d.from} to ${d.to}</p></div>
+    <div class="grid cards">
+      <div class="card"><span>OPD Patients</span><strong>${d.opd.length}</strong></div>
+      <div class="card"><span>IPD Admissions</span><strong>${d.ipd.length}</strong></div>
+      <div class="card"><span>IPD Bills</span><strong>${d.bills.length}</strong></div>
+      <div class="card"><span>Pharmacy Bills</span><strong>${d.sales.length}</strong></div>
+      <div class="card"><span>Avg OPD Value</span><strong>${money(avgOpd)}</strong></div>
+      <div class="card"><span>Avg IPD Bill</span><strong>${money(avgIpd)}</strong></div>
+      <div class="card"><span>Avg Pharmacy Bill</span><strong>${money(avgPharm)}</strong></div>
+      <div class="card"><span>Expense Entries</span><strong>${d.exp.length}</strong></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
+      ${reportTable("OPD Count by Department",d.opdCountByDepartment.map(r=>[r.key,r.value,"patients"]))}
+      ${reportTable("Pharmacy Sales by Patient Type",d.salesByPatientType.map(r=>[r.key,money(r.value),""]))}
+    </div>`;
+}
+
+function renderTrendReport(out,d){
+  const days=[];
+  const start=new Date(d.from); const end=new Date(d.to);
+  for(let x=new Date(start);x<=end;x.setDate(x.getDate()+1)){days.push(x.toISOString().slice(0,10));}
+  const daily=days.map(day=>{
+    const one=buildFinancialSummary({patients:d.opd,ipdBills:d.bills,expenses:d.exp,pharmacySales:d.sales,pharmacyPurchases:d.purchases,stock:d.stock},day,day);
+    return {day,revenue:one.revenue,expense:one.operatingExpenses,profit:one.grossProfit,pharmacy:one.pharmacyRevenue};
+  });
+  const best=daily.slice().sort((a,b)=>b.revenue-a.revenue)[0]||{};
+  const worst=daily.slice().sort((a,b)=>a.revenue-b.revenue)[0]||{};
+  out.innerHTML=`
+    <div class="panel"><h2>Trend Summary</h2><p>${d.from} to ${d.to}</p></div>
+    <div class="grid cards">
+      <div class="card"><span>Best Revenue Day</span><strong>${best.day||"-"}</strong><p>${money(best.revenue||0)}</p></div>
+      <div class="card"><span>Lowest Revenue Day</span><strong>${worst.day||"-"}</strong><p>${money(worst.revenue||0)}</p></div>
+      <div class="card"><span>Average Daily Revenue</span><strong>${money(daily.reduce((s,r)=>s+r.revenue,0)/(daily.length||1))}</strong></div>
+      <div class="card"><span>Average Daily Profit</span><strong>${money(daily.reduce((s,r)=>s+r.profit,0)/(daily.length||1))}</strong></div>
+    </div>
+    <div class="panel table-wrap"><h3>Daily Trend Table</h3><table><thead><tr><th>Date</th><th>Revenue</th><th>Expenses</th><th>Profit</th><th>Pharmacy Sales</th></tr></thead><tbody>${daily.map(r=>`<tr><td>${r.day}</td><td>${money(r.revenue)}</td><td>${money(r.expense)}</td><td>${money(r.profit)}</td><td>${money(r.pharmacy)}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function reportTable(title,rows){
