@@ -4,26 +4,26 @@ async function renderIPDBilling(){
   const el=document.getElementById("ipdBillingView");
   el.innerHTML=`
     <div class="panel">
-      <h2>IPD Billing & Discharge V1</h2>
-      <p>Search admitted patient, add billing items, adjust advance, save final bill, and discharge patient.</p>
+      <h2>IPD Final Billing & Discharge</h2>
+      <p>Final bill imports saved daily charges, adjusts advance, records balance/refund, and discharges patient.</p>
       <div class="form-row"><div><label>Search Admission ID / UHID / Patient Name</label><input id="ipdBillSearch" placeholder="Search active IPD admission"></div><button id="ipdBillSearchBtn">Search</button></div>
       <div id="ipdBillSearchResult"></div>
     </div>
     <div id="ipdBillWorkspace" class="hidden">
       <div class="panel" id="ipdAdmissionSummary"></div>
       <div class="panel">
-        <h3>Add Bill Item</h3>
+        <h3>Add Extra Final Bill Item</h3>
         <div class="grid" style="grid-template-columns:repeat(5,1fr)">
-          <div><label>Category</label><select id="billItemCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Other</option></select></div>
-          <div><label>Description</label><input id="billItemDesc" placeholder="e.g. General ward"></div>
+          <div><label>Category</label><select id="billItemCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Discount</option><option>Other</option></select></div>
+          <div><label>Description</label><input id="billItemDesc" placeholder="Extra charge / discount"></div>
           <div><label>Rate</label><input id="billItemRate" type="number" value="0" step="0.01"></div>
           <div><label>Qty / Days</label><input id="billItemQty" type="number" value="1" step="0.01"></div>
           <div><label>&nbsp;</label><button type="button" id="addBillItemBtn">Add Item</button></div>
         </div>
       </div>
       <div class="panel table-wrap">
-        <h3>Bill Items</h3>
-        <table><thead><tr><th>Category</th><th>Description</th><th>Rate</th><th>Qty</th><th>Amount</th><th>Action</th></tr></thead><tbody id="ipdBillItemsRows"></tbody></table>
+        <h3>Final Bill Items</h3>
+        <table><thead><tr><th>Category</th><th>Description</th><th>Rate</th><th>Qty</th><th>Amount</th><th>Source</th><th>Action</th></tr></thead><tbody id="ipdBillItemsRows"></tbody></table>
       </div>
       <div class="panel">
         <h3>Final Settlement</h3>
@@ -61,19 +61,20 @@ async function searchIPDBillingAdmission(){
   const active=rows.filter(r=>(r.status||"Admitted")!=="Discharged");
   const admission=active.find(r=>[r.admission_id,r.uhid,r.patient_name,r.mobile].join(" ").toLowerCase().includes(q));
   if(!admission){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
-  ipdBillingState={admission,items:defaultIPDBillItems(admission)};
+  ipdBillingState={admission,items:[]};
+  await importDailyChargesForBill(admission);
   document.getElementById("ipdBillWorkspace").classList.remove("hidden");
-  msg.innerHTML=`<p class='success'>Admission loaded: ${admission.patient_name||"Patient"}</p>`;
+  msg.innerHTML=`<p class='success'>Admission loaded: ${admission.patient_name||"Patient"}. Daily charges imported.</p>`;
   renderIPDAdmissionSummary();
   renderIPDBillItems();
   renderIPDBillSummary();
 }
 
-function defaultIPDBillItems(adm){
-  const start=new Date(adm.admission_date||adm.created_at||todayISO());
-  const end=new Date(todayISO());
-  const days=Math.max(1,Math.ceil((end-start)/(1000*60*60*24))+1);
-  return [{category:"Bed Charge",description:`${adm.ward_type||"Ward"} charges`,rate:0,qty:days}];
+async function importDailyChargesForBill(adm){
+  const admissionId=adm.admission_id||String(adm.id);
+  const {data,error}=await db.from("ipd_daily_charges").select("*").eq("admission_id",admissionId).order("charge_date",{ascending:true});
+  if(error){ipdBillingState.items=[];return;}
+  ipdBillingState.items=(data||[]).map(c=>({category:c.category||"Other",description:c.description||c.category||"Charge",rate:safeNumber(c.rate),qty:safeNumber(c.quantity)||1,source:"Daily Charges"}));
 }
 
 function renderIPDAdmissionSummary(){
@@ -102,25 +103,17 @@ function addIPDBillItem(){
   const description=document.getElementById("billItemDesc").value.trim()||category;
   const rate=safeNumber(document.getElementById("billItemRate").value);
   const qty=safeNumber(document.getElementById("billItemQty").value)||1;
-  ipdBillingState.items.push({category,description,rate,qty});
+  ipdBillingState.items.push({category,description,rate,qty,source:"Final Adjustment"});
   document.getElementById("billItemDesc").value="";
   document.getElementById("billItemRate").value="0";
   document.getElementById("billItemQty").value="1";
-  renderIPDBillItems();
-  renderIPDBillSummary();
+  renderIPDBillItems();renderIPDBillSummary();
 }
-
-function removeIPDBillItem(index){
-  ipdBillingState.items.splice(index,1);
-  renderIPDBillItems();
-  renderIPDBillSummary();
-}
-
+function removeIPDBillItem(index){ipdBillingState.items.splice(index,1);renderIPDBillItems();renderIPDBillSummary();}
 function renderIPDBillItems(){
   const body=document.getElementById("ipdBillItemsRows");
-  body.innerHTML=ipdBillingState.items.length?ipdBillingState.items.map((i,idx)=>`<tr><td>${i.category}</td><td>${i.description}</td><td>${money(i.rate)}</td><td>${i.qty}</td><td>${money(i.rate*i.qty)}</td><td><button class="secondary" onclick="removeIPDBillItem(${idx})">Remove</button></td></tr>`).join(""):"<tr><td colspan='6'>No bill items added.</td></tr>";
+  body.innerHTML=ipdBillingState.items.length?ipdBillingState.items.map((i,idx)=>`<tr><td>${i.category}</td><td>${i.description}</td><td>${money(i.rate)}</td><td>${i.qty}</td><td>${money(i.rate*i.qty)}</td><td>${i.source||"Manual"}</td><td><button class="secondary" onclick="removeIPDBillItem(${idx})">Remove</button></td></tr>`).join(""):"<tr><td colspan='7'>No daily charges imported. Add charges first in IPD Daily Charges or add final item here.</td></tr>";
 }
-
 function ipdBillTotals(){
   const gross=ipdBillingState.items.reduce((s,i)=>s+(safeNumber(i.rate)*safeNumber(i.qty)),0);
   const advance=safeNumber(ipdBillingState.admission?.deposit_amount||ipdBillingState.admission?.advance);
@@ -128,7 +121,6 @@ function ipdBillTotals(){
   const refund=Math.max(0,advance-gross);
   return {gross,advance,balance,refund};
 }
-
 function renderIPDBillSummary(){
   const t=ipdBillTotals();
   document.getElementById("ipdGrossBill").textContent=money(t.gross);
@@ -137,14 +129,12 @@ function renderIPDBillSummary(){
   document.getElementById("ipdRefundAmount").textContent=money(t.refund);
   if(document.getElementById("ipdFinalPayment"))document.getElementById("ipdFinalPayment").value=t.balance.toFixed(2);
 }
-
 function generateIPDBillId(){return `IPDBILL-${todayISO().replaceAll("-","")}-${String(Date.now()).slice(-4)}`}
-
 async function saveIPDFinalBill(){
   const msg=document.getElementById("ipdBillingMessage");
   const a=ipdBillingState.admission;
   if(!a){msg.innerHTML="<p class='error'>Load an admission first.</p>";return;}
-  if(!ipdBillingState.items.length){msg.innerHTML="<p class='error'>Add at least one bill item.</p>";return;}
+  if(!ipdBillingState.items.length){msg.innerHTML="<p class='error'>No bill items found. Add daily charges first.</p>";return;}
   const t=ipdBillTotals();
   const billId=generateIPDBillId();
   const payment=safeNumber(document.getElementById("ipdFinalPayment").value);
@@ -155,10 +145,7 @@ async function saveIPDFinalBill(){
   const items=ipdBillingState.items.map(i=>({bill_id:billId,admission_id:a.admission_id||String(a.id),category:i.category,description:i.description,rate:safeNumber(i.rate),quantity:safeNumber(i.qty),amount:safeNumber(i.rate)*safeNumber(i.qty),created_at:new Date().toISOString()}));
   const {error:itemError}=await db.from("ipd_bill_items").insert(items);
   if(itemError){msg.innerHTML=`<p class='error'>Bill saved, but items failed: ${itemError.message}</p>`;return;}
-  if(payment>0){
-    const pay={bill_id:billId,admission_id:a.admission_id||String(a.id),amount:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,payment_date:billingDate,created_at:new Date().toISOString()};
-    await db.from("ipd_payments").insert([pay]);
-  }
+  if(payment>0){await db.from("ipd_payments").insert([{bill_id:billId,admission_id:a.admission_id||String(a.id),amount:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,payment_date:billingDate,created_at:new Date().toISOString()}]);}
   const {error:dischargeError}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:billingDate}).eq("id",a.id);
   if(dischargeError){msg.innerHTML=`<p class='error'>Bill saved, but discharge failed: ${dischargeError.message}</p>`;return;}
   msg.innerHTML=`<p class='success'>Final bill saved and patient discharged. Bill ID: ${billId}</p>`;
