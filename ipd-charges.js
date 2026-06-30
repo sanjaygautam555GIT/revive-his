@@ -1,4 +1,4 @@
-let ipdChargeState={admission:null,charges:[]};
+let ipdChargeState={admission:null,charges:[],doctors:[]};
 
 const IPD_CHARGE_PRESETS={
   bed:{"General Ward":500,"Private Room":1500,"ICU":3000,"Emergency":1000},
@@ -23,6 +23,7 @@ async function renderIPDCharges(){
           <div><label>Date</label><input id="chargeDate" type="date"></div>
           <div><label>Category</label><select id="chargeCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Other</option></select></div>
           <div id="bedTypeBox"><label>Bed Type</label><select id="bedType"><option>General Ward</option><option>Private Room</option><option>ICU</option><option>Emergency</option></select></div>
+          <div id="doctorSelectBox" class="hidden"><label>Doctor</label><select id="chargeDoctor"></select></div>
           <div><label>Description</label><input id="chargeDescription" placeholder="Description"></div>
           <div><label>Rate</label><input id="chargeRate" type="number" value="0" step="0.01"></div>
           <div><label>Qty / Days</label><input id="chargeQty" type="number" value="1" step="0.01"></div>
@@ -43,9 +44,25 @@ async function renderIPDCharges(){
   document.getElementById("ipdChargeForm").onsubmit=saveIPDCharge;
   document.getElementById("chargeCategory").onchange=applyChargePreset;
   document.getElementById("bedType").onchange=applyChargePreset;
+  document.getElementById("chargeDoctor").onchange=applyChargePreset;
   document.getElementById("chargeRate").oninput=updateChargeAmountPreview;
   document.getElementById("chargeQty").oninput=updateChargeAmountPreview;
+  await loadDoctorsForCharge();
   applyChargePreset();
+}
+
+async function loadDoctorsForCharge(){
+  const select=document.getElementById("chargeDoctor");
+  if(!select)return;
+  const {data,error}=await db.from("doctor_master").select("*").order("doctor_name",{ascending:true});
+  if(error){ipdChargeState.doctors=[];select.innerHTML="<option value=''>No doctor master</option>";return;}
+  ipdChargeState.doctors=(data||[]).filter(d=>(d.status||"Active")==="Active");
+  select.innerHTML=ipdChargeState.doctors.length?ipdChargeState.doctors.map(d=>`<option value="${d.id}">${d.doctor_name} (${money(d.ipd_visit_fee||0)})</option>`).join(""):"<option value=''>No active doctor</option>";
+}
+
+function selectedDoctor(){
+  const id=document.getElementById("chargeDoctor")?.value;
+  return (ipdChargeState.doctors||[]).find(d=>String(d.id)===String(id));
 }
 
 function updateChargeAmountPreview(){
@@ -58,23 +75,28 @@ function updateChargeAmountPreview(){
 function applyChargePreset(){
   const category=document.getElementById("chargeCategory")?.value;
   const bedBox=document.getElementById("bedTypeBox");
+  const doctorBox=document.getElementById("doctorSelectBox");
   const bedType=document.getElementById("bedType")?.value||"General Ward";
   const desc=document.getElementById("chargeDescription");
   const rate=document.getElementById("chargeRate");
-  if(!category||!bedBox||!desc||!rate)return;
+  if(!category||!bedBox||!doctorBox||!desc||!rate)return;
+  bedBox.classList.add("hidden");
+  doctorBox.classList.add("hidden");
   if(category==="Bed Charge"){
     bedBox.classList.remove("hidden");
     desc.value=bedType;
     rate.value=IPD_CHARGE_PRESETS.bed[bedType]||0;
+  }else if(category==="Doctor Charge"){
+    doctorBox.classList.remove("hidden");
+    const d=selectedDoctor();
+    desc.value=d?.doctor_name||"Doctor Charge";
+    rate.value=safeNumber(d?.ipd_visit_fee||IPD_CHARGE_PRESETS.fixed[category]);
+  }else if(IPD_CHARGE_PRESETS.fixed[category]!==undefined){
+    desc.value=category;
+    rate.value=IPD_CHARGE_PRESETS.fixed[category];
   }else{
-    bedBox.classList.add("hidden");
-    if(IPD_CHARGE_PRESETS.fixed[category]!==undefined){
-      desc.value=category;
-      rate.value=IPD_CHARGE_PRESETS.fixed[category];
-    }else{
-      desc.value="";
-      rate.value="0";
-    }
+    desc.value="";
+    rate.value="0";
   }
   updateChargeAmountPreview();
 }
