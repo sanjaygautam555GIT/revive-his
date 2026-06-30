@@ -1,10 +1,22 @@
 let ipdChargeState={admission:null,charges:[],wardRates:[]};
 const DEFAULT_WARD_RATES={"General Ward":500,"Private Room":1500,"ICU":3000,"Emergency":1000};
 
+function dateISOFromDate(d){return d.toISOString().slice(0,10)}
+function ipdAdmissionStartISO(a){return (a.admission_date||a.created_at||todayISO()).slice(0,10)}
 function ipdStayDays(a){
-  const start=new Date(a.admission_date||a.created_at||todayISO());
+  const start=new Date(ipdAdmissionStartISO(a));
   const end=new Date(todayISO());
   return Math.max(1,Math.ceil((end-start)/(1000*60*60*24))+1);
+}
+function ipdStayDateList(a){
+  const dates=[];
+  const start=new Date(ipdAdmissionStartISO(a));
+  const days=ipdStayDays(a);
+  for(let i=0;i<days;i++){const d=new Date(start);d.setDate(d.getDate()+i);dates.push(dateISOFromDate(d));}
+  return dates;
+}
+function existingBedChargeDates(){
+  return new Set((ipdChargeState.charges||[]).filter(c=>c.category==="Bed Charge").map(c=>(c.charge_date||rowDate(c)||"").slice(0,10)).filter(Boolean));
 }
 
 async function renderIPDCharges(){
@@ -107,7 +119,9 @@ function renderChargeAdmissionSummary(){
   const rate=getWardRate(a.ward_type||"General Ward");
   const days=ipdStayDays(a);
   const bedAmount=rate*days;
-  const hasAutoBed=(ipdChargeState.charges||[]).some(c=>c.category==="Bed Charge" && (c.description||"").includes("Auto"));
+  const chargedDates=existingBedChargeDates();
+  const missingDates=ipdStayDateList(a).filter(d=>!chargedDates.has(d));
+  const pendingAmount=missingDates.length*rate;
   document.getElementById("ipdChargeAdmissionSummary").innerHTML=`
     <h3>Admission Summary</h3>
     <div class="grid" style="grid-template-columns:repeat(5,1fr)">
@@ -117,9 +131,10 @@ function renderChargeAdmissionSummary(){
       <div><b>Ward/Bed</b><br>${[a.ward_type,a.bed_no].filter(Boolean).join(" / ")}</div>
       <div><b>Stay</b><br>${days} day(s)</div>
       <div><b>Daily Rate</b><br>${money(rate)}</div>
-      <div><b>Calculated Bed Charge</b><br>${money(bedAmount)}</div>
-      <div><b>Status</b><br>${hasAutoBed?"Bed charge generated":"Pending"}</div>
-      <div><label>&nbsp;</label><button type="button" class="secondary" onclick="autoCreateBedCharge()" ${hasAutoBed?"disabled":""}>Generate Bed Charge</button></div>
+      <div><b>Total Bed Charge</b><br>${money(bedAmount)}</div>
+      <div><b>Pending Bed Days</b><br>${missingDates.length} day(s)</div>
+      <div><b>Pending Amount</b><br>${money(pendingAmount)}</div>
+      <div><label>&nbsp;</label><button type="button" class="secondary" onclick="autoCreateBedCharge()" ${missingDates.length?"":"disabled"}>Generate Missing Bed Charges</button></div>
     </div>`;
 }
 
@@ -143,14 +158,14 @@ async function autoCreateBedCharge(){
   const msg=document.getElementById("ipdChargeMessage");
   if(!a){return;}
   const rate=getWardRate(a.ward_type||"General Ward");
-  const days=ipdStayDays(a);
   const admissionId=a.admission_id||String(a.id);
-  const existing=ipdChargeState.charges.find(c=>c.category==="Bed Charge" && (c.description||"").includes("Auto"));
-  if(existing){if(msg)msg.innerHTML="<p class='error'>Auto bed charge already exists for this admission.</p>";return;}
-  const payload={admission_id:admissionId,uhid:a.uhid,patient_name:a.patient_name,charge_date:todayISO(),category:"Bed Charge",description:`Auto ${a.ward_type||"Ward"} charge ${days} day(s)`,rate,quantity:days,amount:rate*days,created_at:new Date().toISOString()};
-  const {error}=await db.from("ipd_daily_charges").insert([payload]);
+  const chargedDates=existingBedChargeDates();
+  const missingDates=ipdStayDateList(a).filter(d=>!chargedDates.has(d));
+  if(!missingDates.length){if(msg)msg.innerHTML="<p class='success'>All bed charges are already generated up to today.</p>";return;}
+  const rows=missingDates.map(d=>({admission_id:admissionId,uhid:a.uhid,patient_name:a.patient_name,charge_date:d,category:"Bed Charge",description:`Auto ${a.ward_type||"Ward"} charge`,rate,quantity:1,amount:rate,created_at:new Date().toISOString()}));
+  const {error}=await db.from("ipd_daily_charges").insert(rows);
   if(error){if(msg)msg.innerHTML=`<p class='error'>Auto bed charge failed: ${error.message}</p>`;return;}
-  if(msg)msg.innerHTML=`<p class='success'>Bed charge generated: ${days} day(s) × ${money(rate)} = ${money(rate*days)}.</p>`;
+  if(msg)msg.innerHTML=`<p class='success'>Generated ${missingDates.length} missing bed charge day(s): ${money(rate*missingDates.length)}.</p>`;
   await loadIPDCharges();renderChargeAdmissionSummary();
 }
 
