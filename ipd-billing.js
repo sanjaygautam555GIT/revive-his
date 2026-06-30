@@ -1,5 +1,10 @@
 let ipdBillingState={admission:null,items:[]};
 
+function ipdItemAmount(i){
+  const amount=safeNumber(i.rate)*safeNumber(i.qty);
+  return (i.category||"").toLowerCase()==="discount" ? -Math.abs(amount) : amount;
+}
+
 async function renderIPDBilling(){
   const el=document.getElementById("ipdBillingView");
   el.innerHTML=`
@@ -112,14 +117,15 @@ function addIPDBillItem(){
 function removeIPDBillItem(index){ipdBillingState.items.splice(index,1);renderIPDBillItems();renderIPDBillSummary();}
 function renderIPDBillItems(){
   const body=document.getElementById("ipdBillItemsRows");
-  body.innerHTML=ipdBillingState.items.length?ipdBillingState.items.map((i,idx)=>`<tr><td>${i.category}</td><td>${i.description}</td><td>${money(i.rate)}</td><td>${i.qty}</td><td>${money(i.rate*i.qty)}</td><td>${i.source||"Manual"}</td><td><button class="secondary" onclick="removeIPDBillItem(${idx})">Remove</button></td></tr>`).join(""):"<tr><td colspan='7'>No daily charges imported. Add charges first in IPD Daily Charges or add final item here.</td></tr>";
+  body.innerHTML=ipdBillingState.items.length?ipdBillingState.items.map((i,idx)=>`<tr><td>${i.category}</td><td>${i.description}</td><td>${money(i.rate)}</td><td>${i.qty}</td><td>${money(ipdItemAmount(i))}</td><td>${i.source||"Manual"}</td><td><button class="secondary" onclick="removeIPDBillItem(${idx})">Remove</button></td></tr>`).join(""):"<tr><td colspan='7'>No daily charges imported. Add charges first in IPD Daily Charges or add final item here.</td></tr>";
 }
 function ipdBillTotals(){
-  const gross=ipdBillingState.items.reduce((s,i)=>s+(safeNumber(i.rate)*safeNumber(i.qty)),0);
+  const gross=ipdBillingState.items.reduce((s,i)=>s+ipdItemAmount(i),0);
+  const finalGross=Math.max(0,gross);
   const advance=safeNumber(ipdBillingState.admission?.deposit_amount||ipdBillingState.admission?.advance);
-  const balance=Math.max(0,gross-advance);
-  const refund=Math.max(0,advance-gross);
-  return {gross,advance,balance,refund};
+  const balance=Math.max(0,finalGross-advance);
+  const refund=Math.max(0,advance-finalGross);
+  return {gross:finalGross,advance,balance,refund};
 }
 function renderIPDBillSummary(){
   const t=ipdBillTotals();
@@ -142,7 +148,7 @@ async function saveIPDFinalBill(){
   const master={bill_id:billId,admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,billing_date:billingDate,total:t.gross,gross_total:t.gross,advance:t.advance,balance:t.balance,refund:t.refund,final_payment:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,remarks:document.getElementById("ipdBillingRemarks").value.trim(),created_at:new Date().toISOString()};
   const {error:billError}=await db.from("ipd_billing").insert([master]);
   if(billError){msg.innerHTML=`<p class='error'>Final bill save failed: ${billError.message}</p>`;return;}
-  const items=ipdBillingState.items.map(i=>({bill_id:billId,admission_id:a.admission_id||String(a.id),category:i.category,description:i.description,rate:safeNumber(i.rate),quantity:safeNumber(i.qty),amount:safeNumber(i.rate)*safeNumber(i.qty),created_at:new Date().toISOString()}));
+  const items=ipdBillingState.items.map(i=>({bill_id:billId,admission_id:a.admission_id||String(a.id),category:i.category,description:i.description,rate:safeNumber(i.rate),quantity:safeNumber(i.qty),amount:ipdItemAmount(i),created_at:new Date().toISOString()}));
   const {error:itemError}=await db.from("ipd_bill_items").insert(items);
   if(itemError){msg.innerHTML=`<p class='error'>Bill saved, but items failed: ${itemError.message}</p>`;return;}
   if(payment>0){await db.from("ipd_payments").insert([{bill_id:billId,admission_id:a.admission_id||String(a.id),amount:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,payment_date:billingDate,created_at:new Date().toISOString()}]);}
