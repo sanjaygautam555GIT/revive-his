@@ -1,14 +1,29 @@
-let ipdChargeState={admission:null,charges:[]};
+let ipdChargeState={admission:null,charges:[],wardRates:[]};
+const DEFAULT_WARD_RATES={"General Ward":500,"Private Room":1500,"ICU":3000,"Emergency":1000};
 
 async function renderIPDCharges(){
   const el=document.getElementById("ipdChargesView");
   el.innerHTML=`
     <div class="panel">
       <h2>IPD Daily Charges</h2>
-      <p>Add day-wise IPD charges. Final IPD bill will import these automatically.</p>
+      <p>Add day-wise IPD charges. Bed charges use Ward/Bed Rate Master automatically.</p>
       <div class="form-row"><div><label>Search Active Admission</label><input id="ipdChargeSearch" placeholder="Admission ID / UHID / patient name"></div><button id="ipdChargeSearchBtn">Search</button></div>
       <div id="ipdChargeSearchResult"></div>
     </div>
+
+    <details class="panel" open>
+      <summary><b>Ward / Bed Rate Master</b></summary>
+      <p>Set default daily bed rates once. Auto bed charge will use these rates.</p>
+      <form id="wardRateForm" class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
+        <div><label>Ward / Room Type</label><select id="rateWardType"><option>General Ward</option><option>Private Room</option><option>ICU</option><option>Emergency</option></select></div>
+        <div><label>Daily Rate</label><input id="rateAmount" type="number" value="500" step="0.01"></div>
+        <div><label>Status</label><select id="rateStatus"><option>Active</option><option>Inactive</option></select></div>
+        <div><label>&nbsp;</label><button type="submit">Save Rate</button></div>
+      </form>
+      <div id="wardRateMessage"></div>
+      <div class="table-wrap" style="margin-top:12px"><table><thead><tr><th>Ward Type</th><th>Daily Rate</th><th>Status</th></tr></thead><tbody id="wardRateRows"></tbody></table></div>
+    </details>
+
     <div id="ipdChargeWorkspace" class="hidden">
       <div class="panel" id="ipdChargeAdmissionSummary"></div>
       <form class="panel" id="ipdChargeForm">
@@ -21,7 +36,7 @@ async function renderIPDCharges(){
           <div><label>Qty / Days</label><input id="chargeQty" type="number" value="1" step="0.01"></div>
         </div>
         <br><button type="submit">Save Charge</button>
-        <button type="button" class="secondary" id="autoBedChargeBtn">Auto Bed Charge Till Today</button>
+        <button type="button" class="secondary" id="autoBedChargeBtn">Auto Bed Charge</button>
         <div id="ipdChargeMessage"></div>
       </form>
       <div class="panel table-wrap">
@@ -35,6 +50,36 @@ async function renderIPDCharges(){
   document.getElementById("ipdChargeSearch").onkeydown=e=>{if(e.key==="Enter")searchIPDChargeAdmission()};
   document.getElementById("ipdChargeForm").onsubmit=saveIPDCharge;
   document.getElementById("autoBedChargeBtn").onclick=autoCreateBedCharge;
+  document.getElementById("wardRateForm").onsubmit=saveWardRate;
+  document.getElementById("rateWardType").onchange=()=>{document.getElementById("rateAmount").value=DEFAULT_WARD_RATES[document.getElementById("rateWardType").value]||500};
+  await loadWardRates();
+}
+
+async function loadWardRates(){
+  const body=document.getElementById("wardRateRows");
+  const {data,error}=await db.from("ward_rate_master").select("*").order("ward_type",{ascending:true});
+  if(error){body.innerHTML=`<tr><td colspan='3' class='error'>${error.message}</td></tr>`;return;}
+  ipdChargeState.wardRates=data||[];
+  body.innerHTML=ipdChargeState.wardRates.length?ipdChargeState.wardRates.map(r=>`<tr><td>${r.ward_type||""}</td><td>${money(r.daily_rate||0)}</td><td>${r.status||"Active"}</td></tr>`).join(""):"<tr><td colspan='3'>No ward rates saved. Defaults will be used.</td></tr>";
+}
+
+async function saveWardRate(e){
+  e.preventDefault();
+  const msg=document.getElementById("wardRateMessage");
+  const wardType=document.getElementById("rateWardType").value;
+  const payload={ward_type:wardType,daily_rate:safeNumber(document.getElementById("rateAmount").value),status:document.getElementById("rateStatus").value,created_at:new Date().toISOString()};
+  const existing=ipdChargeState.wardRates.find(r=>r.ward_type===wardType);
+  let error;
+  if(existing){({error}=await db.from("ward_rate_master").update(payload).eq("id",existing.id));}
+  else {({error}=await db.from("ward_rate_master").insert([payload]));}
+  if(error){msg.innerHTML=`<p class='error'>Rate save failed: ${error.message}</p>`;return;}
+  msg.innerHTML="<p class='success'>Ward rate saved.</p>";
+  await loadWardRates();
+}
+
+function getWardRate(wardType){
+  const row=(ipdChargeState.wardRates||[]).find(r=>r.ward_type===wardType && (r.status||"Active")==="Active");
+  return safeNumber(row?.daily_rate || DEFAULT_WARD_RATES[wardType] || 500);
 }
 
 async function searchIPDChargeAdmission(){
@@ -54,7 +99,8 @@ async function searchIPDChargeAdmission(){
 
 function renderChargeAdmissionSummary(){
   const a=ipdChargeState.admission;
-  document.getElementById("ipdChargeAdmissionSummary").innerHTML=`<h3>Admission Summary</h3><div class="grid" style="grid-template-columns:repeat(4,1fr)"><div><b>Admission</b><br>${a.admission_id||a.id||""}</div><div><b>UHID</b><br>${a.uhid||""}</div><div><b>Patient</b><br>${a.patient_name||""}</div><div><b>Ward/Bed</b><br>${[a.ward_type,a.bed_no].filter(Boolean).join(" / ")}</div></div>`;
+  const rate=getWardRate(a.ward_type||"General Ward");
+  document.getElementById("ipdChargeAdmissionSummary").innerHTML=`<h3>Admission Summary</h3><div class="grid" style="grid-template-columns:repeat(5,1fr)"><div><b>Admission</b><br>${a.admission_id||a.id||""}</div><div><b>UHID</b><br>${a.uhid||""}</div><div><b>Patient</b><br>${a.patient_name||""}</div><div><b>Ward/Bed</b><br>${[a.ward_type,a.bed_no].filter(Boolean).join(" / ")}</div><div><b>Daily Rate</b><br>${money(rate)}</div></div>`;
 }
 
 async function saveIPDCharge(e){
@@ -76,15 +122,17 @@ async function autoCreateBedCharge(){
   const a=ipdChargeState.admission;
   const msg=document.getElementById("ipdChargeMessage");
   if(!a){msg.innerHTML="<p class='error'>Load admission first.</p>";return;}
-  const rate=Number(prompt("Enter bed charge per day", "500"));
-  if(!rate||rate<0)return;
+  const rate=getWardRate(a.ward_type||"General Ward");
   const start=new Date(a.admission_date||a.created_at||todayISO());
   const end=new Date(todayISO());
   const days=Math.max(1,Math.ceil((end-start)/(1000*60*60*24))+1);
-  const payload={admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,charge_date:todayISO(),category:"Bed Charge",description:`${a.ward_type||"Ward"} charges ${days} day(s)`,rate,quantity:days,amount:rate*days,created_at:new Date().toISOString()};
+  const admissionId=a.admission_id||String(a.id);
+  const existing=ipdChargeState.charges.find(c=>c.category==="Bed Charge" && (c.description||"").includes("Auto"));
+  if(existing){msg.innerHTML="<p class='error'>Auto bed charge already exists for this admission. Remove/edit later after we add edit controls.</p>";return;}
+  const payload={admission_id:admissionId,uhid:a.uhid,patient_name:a.patient_name,charge_date:todayISO(),category:"Bed Charge",description:`Auto ${a.ward_type||"Ward"} charge ${days} day(s)`,rate,quantity:days,amount:rate*days,created_at:new Date().toISOString()};
   const {error}=await db.from("ipd_daily_charges").insert([payload]);
   if(error){msg.innerHTML=`<p class='error'>Auto bed charge failed: ${error.message}</p>`;return;}
-  msg.innerHTML="<p class='success'>Auto bed charge added.</p>";
+  msg.innerHTML=`<p class='success'>Auto bed charge added: ${days} day(s) × ${money(rate)} = ${money(rate*days)}.</p>`;
   await loadIPDCharges();
 }
 
