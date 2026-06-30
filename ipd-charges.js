@@ -1,11 +1,16 @@
 let ipdChargeState={admission:null,charges:[]};
 
+const IPD_CHARGE_PRESETS={
+  bed:{"General Ward":500,"ICU":3000,"Emergency":1000},
+  fixed:{"Doctor Charge":500,"Nursing Charge":100}
+};
+
 async function renderIPDCharges(){
   const el=document.getElementById("ipdChargesView");
   el.innerHTML=`
     <div class="panel">
       <h2>IPD Daily Charges</h2>
-      <p>Add day-wise IPD charges including bed charge. Final IPD bill will import these charges automatically.</p>
+      <p>Add day-wise IPD charges. Bed, doctor, and nursing charges can auto-fill standard amounts.</p>
       <div class="form-row"><div><label>Search Active Admission</label><input id="ipdChargeSearch" placeholder="Admission ID / UHID / patient name"></div><button id="ipdChargeSearchBtn">Search</button></div>
       <div id="ipdChargeSearchResult"></div>
     </div>
@@ -14,9 +19,10 @@ async function renderIPDCharges(){
       <div class="panel" id="ipdChargeAdmissionSummary"></div>
       <form class="panel" id="ipdChargeForm">
         <h3>Add Daily Charge</h3>
-        <div class="grid" style="grid-template-columns:repeat(5,1fr)">
+        <div class="grid" style="grid-template-columns:repeat(6,1fr)">
           <div><label>Date</label><input id="chargeDate" type="date"></div>
           <div><label>Category</label><select id="chargeCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Other</option></select></div>
+          <div id="bedTypeBox"><label>Bed Type</label><select id="bedType"><option>General Ward</option><option>ICU</option><option>Emergency</option></select></div>
           <div><label>Description</label><input id="chargeDescription" placeholder="Description"></div>
           <div><label>Rate</label><input id="chargeRate" type="number" value="0" step="0.01"></div>
           <div><label>Qty / Days</label><input id="chargeQty" type="number" value="1" step="0.01"></div>
@@ -34,6 +40,32 @@ async function renderIPDCharges(){
   document.getElementById("ipdChargeSearchBtn").onclick=searchIPDChargeAdmission;
   document.getElementById("ipdChargeSearch").onkeydown=e=>{if(e.key==="Enter")searchIPDChargeAdmission()};
   document.getElementById("ipdChargeForm").onsubmit=saveIPDCharge;
+  document.getElementById("chargeCategory").onchange=applyChargePreset;
+  document.getElementById("bedType").onchange=applyChargePreset;
+  applyChargePreset();
+}
+
+function applyChargePreset(){
+  const category=document.getElementById("chargeCategory")?.value;
+  const bedBox=document.getElementById("bedTypeBox");
+  const bedType=document.getElementById("bedType")?.value||"General Ward";
+  const desc=document.getElementById("chargeDescription");
+  const rate=document.getElementById("chargeRate");
+  if(!category||!bedBox||!desc||!rate)return;
+  if(category==="Bed Charge"){
+    bedBox.classList.remove("hidden");
+    desc.value=bedType;
+    rate.value=IPD_CHARGE_PRESETS.bed[bedType]||0;
+  }else{
+    bedBox.classList.add("hidden");
+    if(IPD_CHARGE_PRESETS.fixed[category]!==undefined){
+      desc.value=category;
+      rate.value=IPD_CHARGE_PRESETS.fixed[category];
+    }else{
+      desc.value="";
+      rate.value="0";
+    }
+  }
 }
 
 async function searchIPDChargeAdmission(){
@@ -74,13 +106,13 @@ async function saveIPDCharge(e){
   const rate=safeNumber(document.getElementById("chargeRate").value);
   const qty=safeNumber(document.getElementById("chargeQty").value)||1;
   const category=document.getElementById("chargeCategory").value;
-  const payload={admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,charge_date:document.getElementById("chargeDate").value,category,description:document.getElementById("chargeDescription").value.trim()||category,rate,quantity:qty,amount:rate*qty,created_at:new Date().toISOString()};
+  const desc=document.getElementById("chargeDescription").value.trim()||category;
+  const payload={admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,charge_date:document.getElementById("chargeDate").value,category,description:desc,rate,quantity:qty,amount:rate*qty,created_at:new Date().toISOString()};
   const {error}=await db.from("ipd_daily_charges").insert([payload]);
   if(error){msg.innerHTML=`<p class='error'>Charge save failed: ${error.message}</p>`;return;}
   msg.innerHTML="<p class='success'>Charge saved.</p>";
-  document.getElementById("chargeDescription").value="";
-  document.getElementById("chargeRate").value="0";
   document.getElementById("chargeQty").value="1";
+  applyChargePreset();
   await loadIPDCharges();
 }
 
