@@ -1,7 +1,7 @@
 let ipdChargeState={admission:null,charges:[]};
 
 const IPD_CHARGE_PRESETS={
-  bed:{"General Ward":500,"ICU":3000,"Emergency":1000},
+  bed:{"General Ward":500,"Private Room":1500,"ICU":3000,"Emergency":1000},
   fixed:{"Doctor Charge":500,"Nursing Charge":100}
 };
 
@@ -19,13 +19,14 @@ async function renderIPDCharges(){
       <div class="panel" id="ipdChargeAdmissionSummary"></div>
       <form class="panel" id="ipdChargeForm">
         <h3>Add Daily Charge</h3>
-        <div class="grid" style="grid-template-columns:repeat(6,1fr)">
+        <div class="grid" style="grid-template-columns:repeat(7,1fr)">
           <div><label>Date</label><input id="chargeDate" type="date"></div>
           <div><label>Category</label><select id="chargeCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Other</option></select></div>
-          <div id="bedTypeBox"><label>Bed Type</label><select id="bedType"><option>General Ward</option><option>ICU</option><option>Emergency</option></select></div>
+          <div id="bedTypeBox"><label>Bed Type</label><select id="bedType"><option>General Ward</option><option>Private Room</option><option>ICU</option><option>Emergency</option></select></div>
           <div><label>Description</label><input id="chargeDescription" placeholder="Description"></div>
           <div><label>Rate</label><input id="chargeRate" type="number" value="0" step="0.01"></div>
           <div><label>Qty / Days</label><input id="chargeQty" type="number" value="1" step="0.01"></div>
+          <div><label>Amount</label><input id="chargeAmountPreview" readonly value="₹0"></div>
         </div>
         <br><button type="submit">Save Charge</button>
         <div id="ipdChargeMessage"></div>
@@ -42,7 +43,16 @@ async function renderIPDCharges(){
   document.getElementById("ipdChargeForm").onsubmit=saveIPDCharge;
   document.getElementById("chargeCategory").onchange=applyChargePreset;
   document.getElementById("bedType").onchange=applyChargePreset;
+  document.getElementById("chargeRate").oninput=updateChargeAmountPreview;
+  document.getElementById("chargeQty").oninput=updateChargeAmountPreview;
   applyChargePreset();
+}
+
+function updateChargeAmountPreview(){
+  const rate=safeNumber(document.getElementById("chargeRate")?.value);
+  const qty=safeNumber(document.getElementById("chargeQty")?.value)||1;
+  const out=document.getElementById("chargeAmountPreview");
+  if(out)out.value=money(rate*qty);
 }
 
 function applyChargePreset(){
@@ -66,6 +76,7 @@ function applyChargePreset(){
       rate.value="0";
     }
   }
+  updateChargeAmountPreview();
 }
 
 async function searchIPDChargeAdmission(){
