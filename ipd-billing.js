@@ -18,8 +18,9 @@ async function renderIPDBilling(){
       <div class="panel" id="ipdAdmissionSummary"></div>
       <div class="panel">
         <h3>Add Extra Final Bill Item</h3>
+        <p>Bed charge should be entered only in IPD Daily Charges.</p>
         <div class="grid" style="grid-template-columns:repeat(5,1fr)">
-          <div><label>Category</label><select id="billItemCategory"><option>Bed Charge</option><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Discount</option><option>Other</option></select></div>
+          <div><label>Category</label><select id="billItemCategory"><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Discount</option><option>Other</option></select></div>
           <div><label>Description</label><input id="billItemDesc" placeholder="Extra charge / discount"></div>
           <div><label>Rate</label><input id="billItemRate" type="number" value="0" step="0.01"></div>
           <div><label>Qty / Days</label><input id="billItemQty" type="number" value="1" step="0.01"></div>
