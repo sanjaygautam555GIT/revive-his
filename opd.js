@@ -48,7 +48,7 @@ async function renderOPD(){
 
     <div class="panel table-wrap">
       <h3>Today's OPD Register</h3>
-      <table><thead><tr><th>Token</th><th>Visit ID</th><th>UHID</th><th>Name</th><th>Department</th><th>Doctor</th><th>Fee</th><th>Mode</th></tr></thead><tbody id="opdRows"></tbody></table>
+      <table><thead><tr><th>Token</th><th>Visit ID</th><th>UHID</th><th>Name</th><th>Department</th><th>Doctor</th><th>Fee</th><th>Mode</th><th>Print</th></tr></thead><tbody id="opdRows"></tbody></table>
     </div>
   `;
   document.getElementById("opdSearchBtn").onclick=searchOPDPatient;
@@ -107,56 +107,16 @@ async function saveOPDVisit(e){
   if(!name||!mobile){msg.innerHTML="<p class='error'>Patient name and mobile are required.</p>";return;}
   let patientId=document.getElementById("opdPatientId").value;
   let uhid=document.getElementById("opdUhid").value || generateUHID();
-  const patientPayload={
-    uhid,
-    patient_id:uhid,
-    name,
-    patient_name:name,
-    age:safeNumber(document.getElementById("opdAge").value),
-    sex:document.getElementById("opdSex").value,
-    mobile,
-    address:document.getElementById("opdAddress").value.trim(),
-    department:document.getElementById("opdDepartment").value,
-    amount:safeNumber(document.getElementById("opdNetAmount").value),
-    payment_mode:document.getElementById("opdPaymentMode").value,
-    created_at:new Date().toISOString()
-  };
-
-  if(!patientId){
-    const {data,error}=await db.from("patient").insert([patientPayload]).select().single();
-    if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}
-    patientId=data.id;
-    uhid=data.uhid||data.patient_id||uhid;
-  }else{
-    await db.from("patient").update(patientPayload).eq("id",patientId);
-  }
-
+  const patientPayload={uhid,patient_id:uhid,name,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,address:document.getElementById("opdAddress").value.trim(),department:document.getElementById("opdDepartment").value,amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,created_at:new Date().toISOString()};
+  if(!patientId){const {data,error}=await db.from("patient").insert([patientPayload]).select().single();if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}patientId=data.id;uhid=data.uhid||data.patient_id||uhid;}else{await db.from("patient").update(patientPayload).eq("id",patientId);}
   const visitId=generateVisitId();
-  const visitPayload={
-    visit_id:visitId,
-    uhid,
-    patient_id:patientId,
-    patient_name:name,
-    age:safeNumber(document.getElementById("opdAge").value),
-    sex:document.getElementById("opdSex").value,
-    mobile,
-    department:document.getElementById("opdDepartment").value,
-    consultant:document.getElementById("opdConsultant").value.trim(),
-    visit_type:document.getElementById("opdVisitType").value,
-    fee:safeNumber(document.getElementById("opdFee").value),
-    discount:safeNumber(document.getElementById("opdDiscount").value),
-    amount:safeNumber(document.getElementById("opdNetAmount").value),
-    payment_mode:document.getElementById("opdPaymentMode").value,
-    status:"Registered",
-    visit_date:todayISO(),
-    created_at:new Date().toISOString()
-  };
+  const visitPayload={visit_id:visitId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,department:document.getElementById("opdDepartment").value,consultant:document.getElementById("opdConsultant").value.trim(),visit_type:document.getElementById("opdVisitType").value,fee:safeNumber(document.getElementById("opdFee").value),discount:safeNumber(document.getElementById("opdDiscount").value),amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,status:"Registered",visit_date:todayISO(),created_at:new Date().toISOString()};
   const {error:visitError}=await db.from("opd_visits").insert([visitPayload]);
   if(visitError){msg.innerHTML=`<p class='error'>OPD visit save failed: ${visitError.message}</p>`;return;}
   document.getElementById("opdPatientId").value=patientId;
   document.getElementById("opdUhid").value=uhid;
   document.getElementById("opdVisitId").value=visitId;
-  msg.innerHTML=`<p class='success'>OPD visit saved. UHID: ${uhid}, Visit: ${visitId}</p>`;
+  msg.innerHTML=`<p class='success'>OPD visit saved. UHID: ${uhid}, Visit: ${visitId} <button type="button" class="secondary" onclick="printOPDSlip('${visitId}')">Print Slip</button></p>`;
   await loadOPDRegister();
 }
 
@@ -174,7 +134,7 @@ async function loadOPDRegister(){
   const body=document.getElementById("opdRows");
   if(!body)return;
   const {data,error}=await db.from("opd_visits").select("*").eq("visit_date",todayISO()).order("created_at",{ascending:true});
-  if(error){body.innerHTML=`<tr><td colspan='8' class='error'>${error.message}</td></tr>`;return;}
+  if(error){body.innerHTML=`<tr><td colspan='9' class='error'>${error.message}</td></tr>`;return;}
   const rows=data||[];
-  body.innerHTML=rows.length?rows.map((r,i)=>`<tr><td>${String(i+1).padStart(3,"0")}</td><td>${r.visit_id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.consultant||""}</td><td>${money(r.amount||0)}</td><td>${r.payment_mode||""}</td></tr>`).join(""):"<tr><td colspan='8'>No OPD visits today.</td></tr>";
+  body.innerHTML=rows.length?rows.map((r,i)=>`<tr><td>${String(i+1).padStart(3,"0")}</td><td>${r.visit_id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.consultant||""}</td><td>${money(r.amount||0)}</td><td>${r.payment_mode||""}</td><td><button class='secondary' onclick="printOPDSlip('${r.visit_id}')">Print</button></td></tr>`).join(""):"<tr><td colspan='9'>No OPD visits today.</td></tr>";
 }
