@@ -45,7 +45,7 @@ async function renderPharmacyBilling(){
       <div class="card"><span>Total Due</span><strong id="salesDue">₹0</strong></div>
     </div>
 
-    <div class="panel table-wrap"><h3>Recent Pharmacy Bills</h3><table><thead><tr><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Paid</th><th>Due</th><th>Mode</th><th>Status</th></tr></thead><tbody id="salesRows"></tbody></table></div>
+    <div class="panel table-wrap"><h3>Recent Pharmacy Bills</h3><table><thead><tr><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Paid</th><th>Due</th><th>Mode</th><th>Status</th><th>Print</th></tr></thead><tbody id="salesRows"></tbody></table></div>
   `;
   pharmacyBillItems=[];
   billAmountPaidEdited=false;
@@ -94,17 +94,7 @@ function addPharmacyBillItem(){
   if(qty<=0){alert("Quantity should be more than 0.");return;}
   if(qty>available){alert("Quantity is more than available stock.");return;}
   const rate=Number(document.getElementById("billSalePrice").value||0);
-  pharmacyBillItems.push({
-    stock_id:stock.id,
-    medicine_name:stock.medicine_name,
-    batch_no:stock.batch_no,
-    expiry_date:stock.expiry_date,
-    purchase_price:Number(stock.purchase_price||0),
-    sale_price:rate,
-    quantity:qty,
-    total:qty*rate,
-    available_before:available
-  });
+  pharmacyBillItems.push({stock_id:stock.id,medicine_name:stock.medicine_name,batch_no:stock.batch_no,expiry_date:stock.expiry_date,purchase_price:Number(stock.purchase_price||0),sale_price:rate,quantity:qty,total:qty*rate,available_before:available});
   document.getElementById("billStockSelect").value="";
   document.getElementById("billAvailableQty").value="";
   document.getElementById("billSalePrice").value=0;
@@ -113,10 +103,7 @@ function addPharmacyBillItem(){
   renderBillItems();
 }
 
-function removeBillItem(i){
-  pharmacyBillItems.splice(i,1);
-  renderBillItems();
-}
+function removeBillItem(i){pharmacyBillItems.splice(i,1);renderBillItems();}
 
 function renderBillItems(){
   const body=document.getElementById("billItemRows");
@@ -129,36 +116,22 @@ function renderBillItems(){
 }
 
 async function savePharmacyBill(){
-  if(currentUser.role!=="pharmacy"){
-    alert("Only Pharmacy Staff can create pharmacy bills.");
-    return;
-  }
+  if(currentUser.role!=="pharmacy"){alert("Only Pharmacy Staff can create pharmacy bills.");return;}
   if(!pharmacyBillItems.length){alert("Add at least one medicine.");return;}
   const total=pharmacyBillItems.reduce((s,r)=>s+Number(r.total||0),0);
   const status=document.getElementById("billPaymentStatus").value;
   const paid=status==="Due"?0:Number(document.getElementById("billAmountPaid").value||0);
   const due=status==="Due"?total:Math.max(total-paid,0);
-  const payload={
-    patient_name:document.getElementById("billPatientName").value.trim()||"Walk-in",
-    patient_type:document.getElementById("billPatientType").value,
-    bill_date:document.getElementById("billDate").value,
-    bill_amount:total,
-    amount_paid:paid,
-    amount_due:due,
-    payment_status:status,
-    payment_mode:document.getElementById("billPaymentMode").value,
-    items_json:JSON.stringify(pharmacyBillItems),
-    created_at:new Date().toISOString()
-  };
+  const payload={patient_name:document.getElementById("billPatientName").value.trim()||"Walk-in",patient_type:document.getElementById("billPatientType").value,bill_date:document.getElementById("billDate").value,bill_amount:total,amount_paid:paid,amount_due:due,payment_status:status,payment_mode:document.getElementById("billPaymentMode").value,items_json:JSON.stringify(pharmacyBillItems),created_at:new Date().toISOString()};
   const msg=document.getElementById("billingMessage");
-  const {error:saleError}=await db.from("pharmacy_sales").insert([payload]);
+  const {data:sale,error:saleError}=await db.from("pharmacy_sales").insert([payload]).select().single();
   if(saleError){msg.innerHTML=`<p class="error">Bill save failed: ${saleError.message}</p>`;return;}
   for(const item of pharmacyBillItems){
     const newQty=Number(item.available_before||0)-Number(item.quantity||0);
     const {error:updateError}=await db.from("pharmacy_stock").update({quantity:newQty}).eq("id",item.stock_id);
     if(updateError){msg.innerHTML=`<p class="error">Bill saved, but stock update failed for ${item.medicine_name}: ${updateError.message}</p>`;return;}
   }
-  msg.innerHTML=`<p class="success">Bill saved and stock deducted.</p>`;
+  msg.innerHTML=`<p class="success">Bill saved and stock deducted. <button type="button" class="secondary" onclick="printPharmacyBill(${sale.id})">Print Bill</button></p>`;
   pharmacyBillItems=[];
   billAmountPaidEdited=false;
   document.getElementById("billPatientName").value="Walk-in";
@@ -171,10 +144,10 @@ async function savePharmacyBill(){
 async function loadPharmacySales(){
   const body=document.getElementById("salesRows");
   const {data,error}=await db.from("pharmacy_sales").select("*").order("created_at",{ascending:false});
-  if(error){body.innerHTML=`<tr><td colspan='8' class='error'>${error.message}</td></tr>`;return;}
+  if(error){body.innerHTML=`<tr><td colspan='9' class='error'>${error.message}</td></tr>`;return;}
   const rows=data||[];
   document.getElementById("salesCount").textContent=rows.length;
   document.getElementById("salesValue").textContent=money(rows.reduce((s,r)=>s+Number(r.bill_amount||0),0));
   document.getElementById("salesDue").textContent=money(rows.reduce((s,r)=>s+Number(r.amount_due||0),0));
-  body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.bill_date||rowDate(r)}</td><td>${r.patient_name||""}</td><td>${r.patient_type||""}</td><td>${money(r.bill_amount||0)}</td><td>${money(r.amount_paid||0)}</td><td>${money(r.amount_due||0)}</td><td>${r.payment_mode||""}</td><td>${r.payment_status||""}</td></tr>`).join(""):"<tr><td colspan='8'>No pharmacy bills.</td></tr>";
+  body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.bill_date||rowDate(r)}</td><td>${r.patient_name||""}</td><td>${r.patient_type||""}</td><td>${money(r.bill_amount||0)}</td><td>${money(r.amount_paid||0)}</td><td>${money(r.amount_due||0)}</td><td>${r.payment_mode||""}</td><td>${r.payment_status||""}</td><td><button class='secondary' onclick='printPharmacyBill(${r.id})'>Print</button></td></tr>`).join(""):"<tr><td colspan='9'>No pharmacy bills.</td></tr>";
 }
