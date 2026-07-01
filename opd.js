@@ -1,3 +1,5 @@
+let opdDoctorMaster=[];
+
 async function renderOPD(){
   const el=document.getElementById("opdView");
   el.innerHTML=`
@@ -28,8 +30,8 @@ async function renderOPD(){
 
       <h3>Visit Details</h3>
       <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-        <div><label>Department</label><select id="opdDepartment"><option>Surgery</option><option>Oncosurgery</option><option>Gynecology</option><option>Gastro Surgery</option><option>Dermatology</option><option>General OPD</option></select></div>
-        <div><label>Consultant</label><input id="opdConsultant" placeholder="Doctor name"></div>
+        <div><label>Consultant</label><select id="opdConsultant"></select></div>
+        <div><label>Department</label><input id="opdDepartment" readonly placeholder="Auto from consultant"></div>
         <div><label>Visit Type</label><select id="opdVisitType"><option>New</option><option>Follow-up</option></select></div>
       </div>
 
@@ -55,9 +57,34 @@ async function renderOPD(){
   document.getElementById("opdSearchTerm").onkeydown=e=>{if(e.key==="Enter")searchOPDPatient()};
   document.getElementById("opdForm").onsubmit=saveOPDVisit;
   document.getElementById("opdResetBtn").onclick=clearOPDForm;
+  document.getElementById("opdConsultant").onchange=applyOPDDoctorPreset;
   ["opdFee","opdDiscount"].forEach(id=>document.getElementById(id).oninput=calculateOPDNet);
+  await loadOPDDoctors();
   calculateOPDNet();
   await loadOPDRegister();
+}
+
+async function loadOPDDoctors(){
+  const select=document.getElementById("opdConsultant");
+  const {data,error}=await db.from("doctor_master").select("*").order("doctor_name",{ascending:true});
+  if(error){opdDoctorMaster=[];select.innerHTML="<option value=''>Doctor master not loaded</option>";return;}
+  opdDoctorMaster=(data||[]).filter(d=>(d.status||"Active")==="Active");
+  select.innerHTML=opdDoctorMaster.length?opdDoctorMaster.map(d=>`<option value="${d.id}">${d.doctor_name}</option>`).join(""):"<option value=''>No active doctor</option>";
+  applyOPDDoctorPreset();
+}
+
+function selectedOPDDoctor(){
+  const id=document.getElementById("opdConsultant")?.value;
+  return (opdDoctorMaster||[]).find(d=>String(d.id)===String(id));
+}
+
+function applyOPDDoctorPreset(){
+  const d=selectedOPDDoctor();
+  const dept=document.getElementById("opdDepartment");
+  const fee=document.getElementById("opdFee");
+  if(dept)dept.value=d?.department||"";
+  if(fee&&d)fee.value=safeNumber(d.opd_fee||500);
+  calculateOPDNet();
 }
 
 function calculateOPDNet(){
@@ -104,13 +131,17 @@ async function saveOPDVisit(e){
   const msg=document.getElementById("opdMessage");
   const name=document.getElementById("opdName").value.trim();
   const mobile=document.getElementById("opdMobile").value.trim();
+  const doctor=selectedOPDDoctor();
   if(!name||!mobile){msg.innerHTML="<p class='error'>Patient name and mobile are required.</p>";return;}
+  if(!doctor){msg.innerHTML="<p class='error'>Please select consultant from Doctor Master.</p>";return;}
   let patientId=document.getElementById("opdPatientId").value;
   let uhid=document.getElementById("opdUhid").value || generateUHID();
-  const patientPayload={uhid,patient_id:uhid,name,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,address:document.getElementById("opdAddress").value.trim(),department:document.getElementById("opdDepartment").value,amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,created_at:new Date().toISOString()};
+  const department=doctor.department||document.getElementById("opdDepartment").value;
+  const consultant=doctor.doctor_name;
+  const patientPayload={uhid,patient_id:uhid,name,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,address:document.getElementById("opdAddress").value.trim(),department,amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,created_at:new Date().toISOString()};
   if(!patientId){const {data,error}=await db.from("patient").insert([patientPayload]).select().single();if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}patientId=data.id;uhid=data.uhid||data.patient_id||uhid;}else{await db.from("patient").update(patientPayload).eq("id",patientId);}
   const visitId=generateVisitId();
-  const visitPayload={visit_id:visitId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,department:document.getElementById("opdDepartment").value,consultant:document.getElementById("opdConsultant").value.trim(),visit_type:document.getElementById("opdVisitType").value,fee:safeNumber(document.getElementById("opdFee").value),discount:safeNumber(document.getElementById("opdDiscount").value),amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,status:"Registered",visit_date:todayISO(),created_at:new Date().toISOString()};
+  const visitPayload={visit_id:visitId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("opdAge").value),sex:document.getElementById("opdSex").value,mobile,department,consultant,visit_type:document.getElementById("opdVisitType").value,fee:safeNumber(document.getElementById("opdFee").value),discount:safeNumber(document.getElementById("opdDiscount").value),amount:safeNumber(document.getElementById("opdNetAmount").value),payment_mode:document.getElementById("opdPaymentMode").value,status:"Registered",visit_date:todayISO(),created_at:new Date().toISOString()};
   const {error:visitError}=await db.from("opd_visits").insert([visitPayload]);
   if(visitError){msg.innerHTML=`<p class='error'>OPD visit save failed: ${visitError.message}</p>`;return;}
   document.getElementById("opdPatientId").value=patientId;
@@ -127,6 +158,7 @@ function clearOPDForm(){
   document.getElementById("opdVisitId").value="";
   document.getElementById("opdSearchResult").innerHTML="";
   document.getElementById("opdMessage").innerHTML="";
+  applyOPDDoctorPreset();
   calculateOPDNet();
 }
 
