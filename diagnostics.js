@@ -1,16 +1,21 @@
 let diagnosticsState={patient:null,admission:null,items:[],tests:[]};
-const DEFAULT_DIAGNOSTICS=[
-  ["CBC",250],["Hb",100],["ESR",150],["Platelet Count",150],["KFT",500],["LFT",500],["Electrolytes",500],["Lipid Profile",700],["HIV I & II",500],["HBsAg",400],["HCV",500],["VDRL",300],["RA Factor",500],["HbA1c",600],["RBS",100],["Blood Sugar Fasting",100],["Blood Sugar PP",100],["Troponin I",900],["CA 125",1500],["CA 19-9",2000],["CEA",1500],["AFP",1500],["LDH",400],["Beta-hCG",800],["Amylase",500],["Lipase",700],["CRP",500],["Urine Routine Microscopy",150],["Urine Culture",600],["Ascitic Fluid Analysis",700],["Pleural Fluid Analysis",700],["aPTT",400],["PT/INR",400],["BT/CT",150],["D-Dimer",1200],["ECG",300],["X-Ray",500],["CT",3000],["Others",0]
-];
+
+const DIAGNOSTIC_GROUPS={
+  "Laboratory":[
+    ["CBC",250],["Hb",100],["ESR",150],["Platelet Count",150],["KFT",500],["LFT",500],["Electrolytes",500],["Lipid Profile",700],["HIV I & II",500],["HBsAg",400],["HCV",500],["VDRL",300],["RA Factor",500],["HbA1c",600],["RBS",100],["Blood Sugar Fasting",100],["Blood Sugar PP",100],["Troponin I",900],["CA 125",1500],["CA 19-9",2000],["CEA",1500],["AFP",1500],["LDH",400],["Beta-hCG",800],["Amylase",500],["Lipase",700],["CRP",500],["Urine Routine Microscopy",150],["Urine Culture",600],["Ascitic Fluid Analysis",700],["Pleural Fluid Analysis",700],["aPTT",400],["PT/INR",400],["BT/CT",150],["D-Dimer",1200]
+  ],
+  "ECG":[["ECG",300]],
+  "X-Ray":[["Chest PA",500],["Chest AP",500],["Abdomen Erect",600],["Abdomen Supine",600],["KUB",600],["Pelvis",600],["Cervical Spine",700],["Dorsal Spine",700],["Lumbar Spine",700],["Upper Limb",600],["Lower Limb",600],["X-Ray Others",0]],
+  "CT Scan":[["CT Brain",2500],["CT Chest",3500],["CT Abdomen",4000],["CT Pelvis",3500],["CT KUB",3500],["CT Neck",3500],["CT Angiography",7000],["CT Others",0]],
+  "Others":[["Others",0]]
+};
 
 async function renderDiagnostics(){
   const el=document.getElementById("diagnosticsView");
   el.innerHTML=`
     <div class="panel">
       <h2>Diagnostics Billing</h2>
-      <p>Search/import patient, choose investigation, add to bill, and save.</p>
-      <button type="button" id="seedDiagnosticsBtn" class="secondary">Load Default Investigations</button>
-      <div id="diagnosticsSeedMessage"></div>
+      <p>Import patient, choose investigation type and name, add to bill, and save.</p>
     </div>
 
     <div class="panel">
@@ -26,8 +31,9 @@ async function renderDiagnostics(){
 
     <div class="panel">
       <h3>2. Choose Investigation</h3>
-      <div class="grid" style="grid-template-columns:2fr 1fr 1fr auto">
-        <div><label>Investigation</label><select id="diagTestSelect"></select></div>
+      <div class="grid" style="grid-template-columns:1fr 2fr 1fr 1fr auto">
+        <div><label>Investigation Type</label><select id="diagTypeSelect"><option>Laboratory</option><option>ECG</option><option>X-Ray</option><option>CT Scan</option><option>Others</option></select></div>
+        <div><label>Investigation Name</label><select id="diagTestSelect"></select></div>
         <div><label>Price</label><input id="diagItemPrice" type="number" value="0" step="0.01"></div>
         <div><label>Qty</label><input id="diagItemQty" type="number" value="1" step="0.01"></div>
         <div><label>&nbsp;</label><button type="button" id="addDiagItemBtn">Add</button></div>
@@ -48,48 +54,38 @@ async function renderDiagnostics(){
       <table><thead><tr><th>Bill No</th><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Mode</th></tr></thead><tbody id="diagnosticsRegisterRows"></tbody></table>
     </div>
   `;
-  document.getElementById("seedDiagnosticsBtn").onclick=seedDiagnosticsTests;
   document.getElementById("diagSearchBtn").onclick=searchDiagnosticsPatient;
   document.getElementById("diagPatientSearch").onkeydown=e=>{if(e.key==="Enter")searchDiagnosticsPatient()};
+  document.getElementById("diagTypeSelect").onchange=populateDiagnosticNames;
   document.getElementById("diagTestSelect").onchange=applyDiagnosticTestPreset;
   document.getElementById("addDiagItemBtn").onclick=addDiagnosticItem;
   document.getElementById("saveDiagnosticsBillBtn").onclick=saveDiagnosticsBill;
-  await loadDiagnosticTests();
+  populateDiagnosticNames();
   renderDiagnosticItems();
   await loadDiagnosticsRegister();
 }
 
-async function seedDiagnosticsTests(){
-  const msg=document.getElementById("diagnosticsSeedMessage");
-  const existing=await fetchAll("diagnostic_test_master");
-  const names=new Set(existing.map(x=>(x.test_name||"").toLowerCase()));
-  const rows=DEFAULT_DIAGNOSTICS.filter(([n])=>!names.has(n.toLowerCase())).map(([test_name,price])=>({test_name,price,status:"Active",created_at:new Date().toISOString()}));
-  if(!rows.length){msg.innerHTML="<p class='success'>Default investigations already loaded.</p>";return;}
-  const {error}=await db.from("diagnostic_test_master").insert(rows);
-  if(error){msg.innerHTML=`<p class='error'>Default load failed: ${error.message}</p>`;return;}
-  msg.innerHTML=`<p class='success'>${rows.length} investigations loaded.</p>`;
-  await loadDiagnosticTests();
-}
-
-async function loadDiagnosticTests(){
+function populateDiagnosticNames(){
+  const type=document.getElementById("diagTypeSelect")?.value||"Laboratory";
   const select=document.getElementById("diagTestSelect");
-  const {data,error}=await db.from("diagnostic_test_master").select("*").order("test_name",{ascending:true});
-  if(error){if(select)select.innerHTML="<option value=''>Create tables first</option>";return;}
-  diagnosticsState.tests=(data||[]).filter(t=>(t.status||"Active")==="Active");
-  if(select)select.innerHTML=diagnosticsState.tests.length?diagnosticsState.tests.map(t=>`<option value="${t.id}">${t.test_name}</option>`).join(""):"<option value=''>Click Load Default Investigations</option>";
+  const list=DIAGNOSTIC_GROUPS[type]||[];
+  if(select)select.innerHTML=list.map(([name,price])=>`<option value="${name}" data-price="${price}">${name}</option>`).join("");
   applyDiagnosticTestPreset();
 }
 
-function selectedDiagnosticTest(){
-  const id=document.getElementById("diagTestSelect")?.value;
-  return diagnosticsState.tests.find(t=>String(t.id)===String(id));
+function selectedDiagnosticName(){
+  const opt=document.getElementById("diagTestSelect")?.selectedOptions?.[0];
+  if(!opt)return {name:"",price:0};
+  return {name:opt.value,price:safeNumber(opt.dataset.price)};
 }
+
 function applyDiagnosticTestPreset(){
-  const t=selectedDiagnosticTest();
+  const t=selectedDiagnosticName();
   const price=document.getElementById("diagItemPrice");
   const other=document.getElementById("otherDiagBox");
-  if(price)price.value=safeNumber(t?.price||0);
-  if(other)other.classList.toggle("hidden",(t?.test_name||"")!=="Others");
+  if(price)price.value=t.price;
+  const isOther=["Others","X-Ray Others","CT Others"].includes(t.name);
+  if(other)other.classList.toggle("hidden",!isOther);
 }
 
 async function searchDiagnosticsPatient(){
@@ -115,13 +111,14 @@ async function searchDiagnosticsPatient(){
 }
 
 function addDiagnosticItem(){
-  const t=selectedDiagnosticTest();
-  if(!t)return;
-  const isOther=(t.test_name||"")==="Others";
-  const name=isOther?(document.getElementById("otherDiagName").value.trim()||"Others"):t.test_name;
+  const t=selectedDiagnosticName();
+  if(!t.name)return;
+  const isOther=["Others","X-Ray Others","CT Others"].includes(t.name);
+  const custom=document.getElementById("otherDiagName")?.value.trim();
+  const name=isOther?(custom||t.name):t.name;
   const price=safeNumber(document.getElementById("diagItemPrice").value);
   const qty=safeNumber(document.getElementById("diagItemQty").value)||1;
-  diagnosticsState.items.push({test_id:t.id,test_name:name,price,qty,amount:price*qty});
+  diagnosticsState.items.push({test_id:null,test_name:name,price,qty,amount:price*qty});
   document.getElementById("diagItemQty").value="1";
   if(document.getElementById("otherDiagName"))document.getElementById("otherDiagName").value="";
   renderDiagnosticItems();
