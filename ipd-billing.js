@@ -155,5 +155,5 @@ async function saveIPDFinalBill(){
   if(payment>0){await db.from("ipd_payments").insert([{bill_id:billId,admission_id:a.admission_id||String(a.id),amount:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,payment_date:billingDate,created_at:new Date().toISOString()}]);}
   const {error:dischargeError}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:billingDate}).eq("id",a.id);
   if(dischargeError){msg.innerHTML=`<p class='error'>Bill saved, but discharge failed: ${dischargeError.message}</p>`;return;}
-  msg.innerHTML=`<p class='success'>Final bill saved and patient discharged. Bill ID: ${billId}</p>`;
+  msg.innerHTML=`<p class='success'>Final bill saved and patient discharged. Bill ID: ${billId} <button type="button" class="secondary" onclick="printIPDFinalBill('${billId}')">Print Bill</button></p>`;
 }
