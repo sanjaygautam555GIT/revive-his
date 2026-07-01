@@ -38,6 +38,6 @@ async function appUsersLogin(username,code){
     return currentUser;
   }catch(e){return null;}
 }
-document.getElementById("loginForm").addEventListener("submit",async e=>{e.preventDefault();let user=await appUsersLogin(document.getElementById("username").value,document.getElementById("password").value);if(!user)user=await login(document.getElementById("username").value,document.getElementById("password").value);if(!user){document.getElementById("loginError").textContent="Invalid username or password.";return}showApp()});
+document.getElementById("loginForm").addEventListener("submit",async e=>{e.preventDefault();const user=await appUsersLogin(document.getElementById("username").value,document.getElementById("password").value);if(!user){document.getElementById("loginError").textContent="Invalid username or password.";return}showApp()});
 document.getElementById("logoutBtn").onclick=()=>{logout();location.reload()};
 if(restoreSession())showApp();
