@@ -1,4 +1,5 @@
 let ipdDoctorMaster=[];
+function isActiveIPD(r){return !["discharged","final billed","cancelled","closed"].includes(String(r.status||"Admitted").trim().toLowerCase())}
 
 async function renderIPD(){
   const el=document.getElementById("ipdView");
@@ -25,7 +26,6 @@ async function renderIPD(){
         <div><label>Mobile</label><input id="ipdMobile" required></div>
       </div>
       <div><label>Address</label><input id="ipdAddress"></div>
-
       <h3>Admission Details</h3>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
         <div><label>Admission Date</label><input id="ipdAdmissionDate" type="date"></div>
@@ -38,25 +38,21 @@ async function renderIPD(){
         <div><label>Bed No</label><input id="ipdBedNo" placeholder="Required for bed check"></div>
         <div><label>Diagnosis / Indication</label><input id="ipdDiagnosis" placeholder="Admission diagnosis"></div>
       </div>
-
       <h3>Initial Deposit</h3>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
         <div><label>Deposit Amount</label><input id="ipdDeposit" type="number" value="0" step="0.01"></div>
         <div><label>Payment Mode</label><select id="ipdPaymentMode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Credit</option></select></div>
         <div><label>Deposit Date</label><input id="ipdDepositDate" type="date"></div>
         <div><label>Remarks</label><input id="ipdRemarks" placeholder="Optional"></div>
-      </div>
-      <br>
+      </div><br>
       <button type="submit">Save IPD Admission</button>
       <button type="button" class="secondary" id="ipdResetBtn">Clear Form</button>
       <div id="ipdMessage"></div>
     </form>
-
     <div class="panel table-wrap">
       <h3>Current IPD Admissions</h3>
       <table><thead><tr><th>Adm ID</th><th>UHID</th><th>Name</th><th>Department</th><th>Doctor</th><th>Ward/Bed</th><th>Treatment</th><th>Deposit</th><th>Status</th><th>Action</th></tr></thead><tbody id="ipdRows"></tbody></table>
-    </div>
-  `;
+    </div>`;
   document.getElementById("ipdAdmissionDate").value=todayISO();
   document.getElementById("ipdDepositDate").value=todayISO();
   document.getElementById("ipdSearchBtn").onclick=searchIPDPatient;
@@ -72,21 +68,12 @@ async function loadIPDDoctors(){
   const select=document.getElementById("ipdConsultant");
   const {data,error}=await db.from("doctor_master").select("*").order("doctor_name",{ascending:true});
   if(error){ipdDoctorMaster=[];select.innerHTML="<option value=''>Doctor master not loaded</option>";return;}
-  ipdDoctorMaster=(data||[]).filter(d=>(d.status||"Active")==="Active");
+  ipdDoctorMaster=(data||[]).filter(d=>String(d.status||"Active").toLowerCase()==="active");
   select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map(d=>`<option value="${d.id}">${d.doctor_name}</option>`).join(""):"<option value=''>No active doctor</option>";
   applyIPDDoctorDepartment();
 }
-
-function selectedIPDDoctor(){
-  const id=document.getElementById("ipdConsultant")?.value;
-  return (ipdDoctorMaster||[]).find(d=>String(d.id)===String(id));
-}
-
-function applyIPDDoctorDepartment(){
-  const d=selectedIPDDoctor();
-  const dept=document.getElementById("ipdDepartment");
-  if(dept)dept.value=d?.department||"";
-}
+function selectedIPDDoctor(){const id=document.getElementById("ipdConsultant")?.value;return (ipdDoctorMaster||[]).find(d=>String(d.id)===String(id));}
+function applyIPDDoctorDepartment(){const d=selectedIPDDoctor();const dept=document.getElementById("ipdDepartment");if(dept)dept.value=d?.department||"";}
 
 async function searchIPDPatient(){
   const term=document.getElementById("ipdSearchTerm").value.trim();
@@ -99,7 +86,6 @@ async function searchIPDPatient(){
   if(!p){msg.innerHTML="<p class='error'>No patient found. Register patient in OPD first or enter details manually.</p>";document.getElementById("ipdMobile").value=term;return;}
   await loadPatientIntoIPD(p,msg);
 }
-
 async function loadPatientIntoIPD(p,msg){
   document.getElementById("ipdPatientId").value=p.id||"";
   document.getElementById("ipdUhid").value=p.uhid||p.patient_id||"";
@@ -113,7 +99,6 @@ async function loadPatientIntoIPD(p,msg){
   const prev=admissions.filter(v=>(v.uhid&&v.uhid===uhid)||(v.mobile&&v.mobile===p.mobile)||(v.patient_name&&v.patient_name===(p.name||p.patient_name)));
   msg.innerHTML=`<div class='sync-box'><b>Patient loaded</b><br>UHID: ${uhid||"-"} &nbsp; | &nbsp; Name: ${p.name||p.patient_name||"Patient"} &nbsp; | &nbsp; Age: ${p.age||"-"} &nbsp; | &nbsp; Previous IPD: ${prev.length}</div>`;
 }
-
 function generateAdmissionId(){return `IPD-${todayISO().replaceAll("-","")}-${String(Date.now()).slice(-4)}`}
 function generateIPDUHID(){return `RVH-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`}
 
@@ -128,58 +113,30 @@ async function saveIPDAdmission(e){
   if(!name||!mobile){msg.innerHTML="<p class='error'>Patient name and mobile are required.</p>";return;}
   if(!bedNo){msg.innerHTML="<p class='error'>Bed number is required for IPD admission.</p>";return;}
   if(!doctor){msg.innerHTML="<p class='error'>Please select consultant from Doctor Master.</p>";return;}
-
   const existing=await fetchAll("ipd_admission");
-  const occupied=existing.find(r=>(r.status||"Admitted")!=="Discharged" && (r.ward_type||"")===wardType && String(r.bed_no||"").trim()===bedNo);
+  const occupied=existing.find(r=>isActiveIPD(r) && (r.ward_type||"")===wardType && String(r.bed_no||"").trim()===bedNo);
   if(occupied){msg.innerHTML=`<p class='error'>Bed already occupied: ${wardType} / ${bedNo} by ${occupied.patient_name||"another patient"}.</p>`;return;}
-
   let patientId=document.getElementById("ipdPatientId").value;
   let uhid=document.getElementById("ipdUhid").value || generateIPDUHID();
   const department=doctor.department||document.getElementById("ipdDepartment").value;
   const patientPayload={uhid,patient_id:uhid,name,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),department,created_at:new Date().toISOString()};
-  if(!patientId){
-    const {data,error}=await db.from("patient").insert([patientPayload]).select().single();
-    if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}
-    patientId=data.id;uhid=data.uhid||data.patient_id||uhid;
-  }else{
-    await db.from("patient").update(patientPayload).eq("id",patientId);
-  }
-
+  if(!patientId){const {data,error}=await db.from("patient").insert([patientPayload]).select().single();if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}patientId=data.id;uhid=data.uhid||data.patient_id||uhid;}else{await db.from("patient").update(patientPayload).eq("id",patientId);}
   const admissionId=generateAdmissionId();
-  const payload={admission_id:admissionId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),admission_date:document.getElementById("ipdAdmissionDate").value,department,doctor:doctor.doctor_name,consultant:doctor.doctor_name,diagnosis:document.getElementById("ipdDiagnosis").value.trim(),treatment_type:document.getElementById("ipdTreatmentType").value,ward_type:wardType,bed_no:bedNo,advance:safeNumber(document.getElementById("ipdDeposit").value),deposit_amount:safeNumber(document.getElementById("ipdDeposit").value),payment_mode:document.getElementById("ipdPaymentMode").value,deposit_date:document.getElementById("ipdDepositDate").value,status:"Admitted",remarks:document.getElementById("ipdRemarks").value.trim(),created_at:new Date().toISOString()};
+  const deposit=safeNumber(document.getElementById("ipdDeposit").value);
+  const payload={admission_id:admissionId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),admission_date:document.getElementById("ipdAdmissionDate").value,department,doctor:doctor.doctor_name,consultant:doctor.doctor_name,diagnosis:document.getElementById("ipdDiagnosis").value.trim(),treatment_type:document.getElementById("ipdTreatmentType").value,ward_type:wardType,bed_no:bedNo,advance:deposit,deposit_amount:deposit,payment_mode:document.getElementById("ipdPaymentMode").value,deposit_date:document.getElementById("ipdDepositDate").value,status:"Admitted",remarks:document.getElementById("ipdRemarks").value.trim(),created_at:new Date().toISOString()};
   const {error}=await db.from("ipd_admission").insert([payload]);
   if(error){msg.innerHTML=`<p class='error'>IPD admission save failed: ${error.message}</p>`;return;}
-  document.getElementById("ipdPatientId").value=patientId;
-  document.getElementById("ipdUhid").value=uhid;
-  document.getElementById("ipdAdmissionId").value=admissionId;
+  document.getElementById("ipdPatientId").value=patientId;document.getElementById("ipdUhid").value=uhid;document.getElementById("ipdAdmissionId").value=admissionId;
   msg.innerHTML=`<p class='success'>IPD admission saved. UHID: ${uhid}, Admission: ${admissionId}</p>`;
   await loadIPDRegister();
 }
-
-async function dischargeIPD(id){
-  if(!confirm("Mark this patient as discharged?"))return;
-  const {error}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:todayISO()}).eq("id",id);
-  if(error){alert("Discharge failed: "+error.message);return;}
-  await loadIPDRegister();
-}
-
-function clearIPDForm(){
-  document.getElementById("ipdForm").reset();
-  document.getElementById("ipdPatientId").value="";
-  document.getElementById("ipdUhid").value="";
-  document.getElementById("ipdAdmissionId").value="";
-  document.getElementById("ipdSearchResult").innerHTML="";
-  document.getElementById("ipdMessage").innerHTML="";
-  document.getElementById("ipdAdmissionDate").value=todayISO();
-  document.getElementById("ipdDepositDate").value=todayISO();
-  applyIPDDoctorDepartment();
-}
-
+async function dischargeIPD(id){if(!confirm("Mark this patient as discharged?"))return;const {error}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:todayISO()}).eq("id",id);if(error){alert("Discharge failed: "+error.message);return;}await loadIPDRegister();}
+function clearIPDForm(){document.getElementById("ipdForm").reset();document.getElementById("ipdPatientId").value="";document.getElementById("ipdUhid").value="";document.getElementById("ipdAdmissionId").value="";document.getElementById("ipdSearchResult").innerHTML="";document.getElementById("ipdMessage").innerHTML="";document.getElementById("ipdAdmissionDate").value=todayISO();document.getElementById("ipdDepositDate").value=todayISO();applyIPDDoctorDepartment();}
 async function loadIPDRegister(){
   const body=document.getElementById("ipdRows");
   if(!body)return;
-  const {data,error}=await db.from("ipd_admission").select("*").order("created_at",{ascending:false}).limit(50);
+  const {data,error}=await db.from("ipd_admission").select("*").order("created_at",{ascending:false}).limit(100);
   if(error){body.innerHTML=`<tr><td colspan='10' class='error'>${error.message}</td></tr>`;return;}
-  const rows=(data||[]).filter(r=>(r.status||"Admitted")!=="Discharged");
-  body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.admission_id||r.id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.doctor||r.consultant||""}</td><td>${[r.ward_type,r.bed_no].filter(Boolean).join(" / ")}</td><td>${r.treatment_type||""}</td><td>${money(r.advance||r.deposit_amount||0)}</td><td>${r.status||"Admitted"}</td><td><button class="secondary" onclick="dischargeIPD(${r.id})">Discharge</button></td></tr>`).join(""):"<tr><td colspan='10'>No current IPD admissions.</td></tr>";
+  const rows=(data||[]).filter(isActiveIPD);
+  body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.admission_id||r.id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.doctor||r.consultant||""}</td><td>${[r.ward_type,r.bed_no].filter(Boolean).join(" / ")}</td><td>${r.treatment_type||""}</td><td>${money(r.deposit_amount||r.advance||0)}</td><td>${r.status||"Admitted"}</td><td><button class="secondary" onclick="dischargeIPD(${r.id})">Discharge</button></td></tr>`).join(""):"<tr><td colspan='10'>No current IPD admissions.</td></tr>";
 }
