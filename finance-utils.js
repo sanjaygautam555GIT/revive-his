@@ -7,6 +7,7 @@ function parseSaleItems(row){try{return JSON.parse(row.items_json||"[]")}catch(e
 function pharmacySalesCost(rows){return rows.reduce((s,row)=>s+parseSaleItems(row).reduce((x,item)=>x+(safeNumber(item.purchase_price)*safeNumber(item.quantity)),0),0)}
 function pharmacySalesMRP(rows){return rows.reduce((s,row)=>s+safeNumber(row.amount_paid||row.bill_amount),0)}
 function depositAmount(row){return safeNumber(row.deposit_amount||row.advance)}
+function isActiveAdmission(row){return !["discharged","final billed","cancelled","closed"].includes(String(row?.status||"Admitted").trim().toLowerCase())}
 function depositModeSum(rows,mode){return rows.filter(r=>(r.payment_mode||"").toLowerCase()===mode).reduce((s,r)=>s+depositAmount(r),0)}
 function depositBankSum(rows){return rows.filter(r=>(r.payment_mode||"").toLowerCase().includes("bank")).reduce((s,r)=>s+depositAmount(r),0)}
 function stockValuation(stock){
