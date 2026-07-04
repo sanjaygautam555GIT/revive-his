@@ -48,7 +48,6 @@ async function renderPharmacyBilling(){
   document.getElementById('clearBillBtn').onclick=clearPharmacyBill;
   renderBillItems(); await loadPharmacySales();
 }
-
 function clearPharmacyPatient(){currentPharmacyPatient=null;document.getElementById('billPatientName').value='Walk-in';document.getElementById('billPatientType').value='Walk-in';document.getElementById('billUhid').value='';document.getElementById('billRef').value='';document.getElementById('phMsg').innerHTML='';}
 async function importPharmacyPatient(){
   const source=document.getElementById('phSource').value; const q=document.getElementById('phSearch').value.trim().toLowerCase(); const msg=document.getElementById('phMsg');
@@ -56,7 +55,7 @@ async function importPharmacyPatient(){
   if(!q){msg.innerHTML="<p class='error'>Enter search text.</p>";return;}
   if(source==='IPD'){
     const rows=await fetchAll('ipd_admission');
-    const a=rows.find(r=>(r.status||'Admitted')!=='Discharged' && [r.admission_id,r.uhid,r.patient_name,r.mobile].join(' ').toLowerCase().includes(q));
+    const a=rows.find(r=>isActiveAdmission(r) && [r.admission_id,r.uhid,r.patient_name,r.mobile].join(' ').toLowerCase().includes(q));
     if(!a){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
     currentPharmacyPatient={type:'IPD',ref:a.admission_id||String(a.id),uhid:a.uhid||'',name:a.patient_name||''};
     document.getElementById('billPatientName').value=a.patient_name||''; document.getElementById('billPatientType').value='IPD'; document.getElementById('billUhid').value=a.uhid||''; document.getElementById('billRef').value=a.admission_id||String(a.id); document.getElementById('billPaymentStatus').value='Due'; document.getElementById('billAmountPaid').value=0; billAmountPaidEdited=true;
@@ -70,7 +69,6 @@ async function importPharmacyPatient(){
     msg.innerHTML=`<div class='sync-box'><b>OPD patient imported</b><br>${v.patient_name||''} · ${v.uhid||''} · ${v.visit_id||''}</div>`;
   }
 }
-
 async function loadBillingStock(){const sel=document.getElementById('billStockSelect');const {data,error}=await db.from('pharmacy_stock').select('*').gt('quantity',0).order('medicine_name',{ascending:true});if(error){sel.innerHTML='<option value="">Stock load failed</option>';return;}pharmacyStockRows=data||[];sel.innerHTML='<option value="">Select stock</option>'+pharmacyStockRows.map(r=>`<option value="${r.id}">${r.medicine_name||''} | Batch ${r.batch_no||''} | Exp ${r.expiry_date||''} | Qty ${r.quantity||0}</option>`).join('');}
 function selectBillingStock(){const id=document.getElementById('billStockSelect').value;const stock=pharmacyStockRows.find(r=>String(r.id)===String(id));if(!stock)return;document.getElementById('billAvailableQty').value=stock.quantity||0;document.getElementById('billSalePrice').value=stock.sale_price||0;updateBillLineTotal();}
 function updateBillLineTotal(){const qty=Number(document.getElementById('billQty').value||0);const rate=Number(document.getElementById('billSalePrice').value||0);document.getElementById('billLineTotal').value=(qty*rate).toFixed(2);}
