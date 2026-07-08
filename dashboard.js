@@ -40,10 +40,15 @@ async function loadDashboard(){
     monthly.totalRevenue=monthly.opdRevenue+monthly.ipdRevenue+monthly.diagRevenue+monthly.pharmRevenue;
     monthly.netAfterExpense=monthly.totalRevenue-monthly.expense;
     monthly.totalCollection=monthly.cash+monthly.upi+monthly.bank;
+    const stockRows=(stock||[]).filter(r=>safeNumber(r.quantity)>0);
     const stockValue=stockValuation(stock).purchaseValue;
-    const lowStock=stock.filter(r=>safeNumber(r.quantity)<=10);
-    const expiringSoon=stock.filter(r=>r.expiry_date&&new Date(r.expiry_date)>=now&&new Date(r.expiry_date)<=in30);
-    const expired=stock.filter(r=>r.expiry_date&&new Date(r.expiry_date)<now);
+    const stockSaleValue=stockRows.reduce((s,r)=>s+safeNumber(r.sale_price)*safeNumber(r.quantity),0);
+    const totalStockQty=stockRows.reduce((s,r)=>s+safeNumber(r.quantity),0);
+    const lowStock=stockRows.filter(r=>safeNumber(r.quantity)<=10);
+    const expiringSoon=stockRows.filter(r=>r.expiry_date&&new Date(r.expiry_date)>=now&&new Date(r.expiry_date)<=in30);
+    const expired=stockRows.filter(r=>r.expiry_date&&new Date(r.expiry_date)<now);
+    const nearExpiryValue=expiringSoon.reduce((s,r)=>s+safeNumber(r.purchase_price)*safeNumber(r.quantity),0);
+    const expiredValue=expired.reduce((s,r)=>s+safeNumber(r.purchase_price)*safeNumber(r.quantity),0);
     const trend=lastNDaysSimple({opdVisits,ipdBills,diagnosticBills,pharmacySales,expenses},7,today);
     el.innerHTML=`
       <div class="dash-head"><div><h2>Revive Hospital Dashboard</h2><p>Daily and monthly overview · ${new Date().toLocaleDateString()} · Updated ${new Date().toLocaleTimeString()}</p></div></div>
@@ -61,14 +66,14 @@ async function loadDashboard(){
         ${summaryTable("Expense This Month",[["Expense Entries",expMonth.length],["Total Expense",money(monthly.expense)],["Revenue - Expense",money(monthly.netAfterExpense)]])}
         ${summaryTable("Monthly Statistics",[["Total OPD",monthly.opdCount],["Total Admissions",monthly.admissions],["Active IPD",activeIpd.length],["Total Discharges",monthly.discharges],["Diagnostics Bills",monthly.diagCount],["Pharmacy Bills",monthly.pharmCount]])}
       </div>
-      <div class="panel"><h2>Pharmacy Stock</h2><p>Stock is shown separately from hospital revenue.</p></div>
+      <div class="panel"><h2>Pharmacy Stock</h2><p>Inventory status only. Sales are shown under revenue sections.</p></div>
       <div class="kpi-grid compact">
-        ${kpiCard("Current Stock Value",money(stockValue),`${stock.length} stock rows`,"analytics")}
-        ${kpiCard("Today Pharmacy Sales",money(daily.pharmRevenue),`${daily.pharmCount} bills`,"success")}
-        ${kpiCard("Monthly Pharmacy Sales",money(monthly.pharmRevenue),`${monthly.pharmCount} bills`,"success")}
+        ${kpiCard("Purchase Stock Value",money(stockValue),`${stockRows.length} active stock rows`,"analytics")}
+        ${kpiCard("Sale Stock Value",money(stockSaleValue),"value at sale price","analytics")}
+        ${kpiCard("Total Stock Quantity",totalStockQty,"units in stock","info")}
         ${kpiCard("Low Stock",lowStock.length,"Qty ≤ 10",lowStock.length?"warning":"success")}
-        ${kpiCard("Expiring Soon",expiringSoon.length,"within 30 days",expiringSoon.length?"warning":"success")}
-        ${kpiCard("Expired",expired.length,"needs removal",expired.length?"danger":"success")}
+        ${kpiCard("Expiring Soon",expiringSoon.length,`${money(nearExpiryValue)} within 30 days`,expiringSoon.length?"warning":"success")}
+        ${kpiCard("Expired Stock",expired.length,`${money(expiredValue)} needs removal`,expired.length?"danger":"success")}
       </div>
       <div class="dashboard-main-grid">
         <div class="panel"><h3>Revenue Trend – Last 7 Days</h3>${miniBarChart(trend.map(r=>r.revenue),trend.map(r=>r.day.slice(5)),"Revenue")}</div>
