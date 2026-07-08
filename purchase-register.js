@@ -1,19 +1,31 @@
 let purchaseInvoiceItems=[];
 let previousPurchaseMedicines=[];
-let previousPurchaseSuppliers=[];
+let purchaseSuppliers=[];
 
 async function renderPurchaseRegister(){
   const el=document.getElementById("purchaseRegisterView");
   el.innerHTML=`
     <div class="panel">
       <h2>Pharmacy Purchase Register</h2>
-      <p>Type supplier and medicine directly. Saving purchase will add stock automatically.</p>
-      <div class="grid" style="grid-template-columns:repeat(3,1fr)">
-        <div><label>Supplier Name</label><input id="purchaseSupplier" list="supplierSuggestions" required><datalist id="supplierSuggestions"></datalist></div>
+      <p>Select supplier from Supplier Master, add medicines, save invoice, and stock updates automatically.</p>
+      <div class="grid" style="grid-template-columns:1.4fr auto 1fr 1fr 1fr">
+        <div><label>Supplier Name</label><select id="purchaseSupplier"><option value="">Loading suppliers...</option></select></div>
+        <div><label>&nbsp;</label><button type="button" class="secondary" id="quickAddSupplierBtn">+ Supplier</button></div>
         <div><label>Invoice No</label><input id="purchaseInvoice" required></div>
         <div><label>Invoice Date</label><input id="purchaseDate" type="date" value="${todayISO()}" required></div>
         <div><label>Payment Status</label><select id="purchasePaymentStatus"><option>Paid</option><option>Due</option><option>Partial</option></select></div>
         <div><label>Payment Mode</label><select id="purchasePaymentMode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Credit</option></select></div>
+      </div>
+      <div id="quickSupplierBox" class="hidden" style="margin-top:12px">
+        <h3>Add New Supplier</h3>
+        <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+          <div><label>Supplier Name</label><input id="newSupplierName"></div>
+          <div><label>Contact Person</label><input id="newSupplierContact"></div>
+          <div><label>Mobile</label><input id="newSupplierMobile"></div>
+          <div><label>Payment Terms</label><input id="newSupplierTerms" placeholder="Cash / 30 days"></div>
+        </div><br>
+        <button type="button" id="saveQuickSupplierBtn">Save Supplier</button>
+        <button type="button" class="secondary" id="cancelQuickSupplierBtn">Cancel</button>
       </div>
     </div>
 
@@ -52,6 +64,9 @@ async function renderPurchaseRegister(){
   `;
   purchaseInvoiceItems=[];
   await loadPurchaseSuggestions();
+  document.getElementById("quickAddSupplierBtn").onclick=()=>document.getElementById("quickSupplierBox").classList.remove("hidden");
+  document.getElementById("cancelQuickSupplierBtn").onclick=()=>document.getElementById("quickSupplierBox").classList.add("hidden");
+  document.getElementById("saveQuickSupplierBtn").onclick=saveQuickSupplier;
   document.getElementById("purchaseMedicine").onchange=applyPreviousMedicineDetails;
   document.getElementById("purchaseQty").oninput=updatePurchaseLineTotal;
   document.getElementById("purchasePrice").oninput=updatePurchaseLineTotal;
@@ -69,18 +84,37 @@ function updatePurchaseLineTotal(){
 }
 
 async function loadPurchaseSuggestions(){
-  const [purchaseRes,stockRes]=await Promise.all([
+  const [supplierRes,purchaseRes,stockRes]=await Promise.all([
+    db.from("suppliers").select("*").order("supplier_name",{ascending:true}),
     db.from("pharmacy_purchases").select("supplier,medicine_name,category,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
     db.from("pharmacy_stock").select("medicine_name,category,purchase_price,sale_price,mrp").order("medicine_name",{ascending:true}).limit(1000)
   ]);
+  purchaseSuppliers=supplierRes.data||[];
+  const sel=document.getElementById("purchaseSupplier");
+  sel.innerHTML=purchaseSuppliers.length?`<option value="">Select supplier</option>`+purchaseSuppliers.map(s=>`<option value="${s.supplier_name}">${s.supplier_name}</option>`).join(""):`<option value="">No suppliers saved - add supplier</option>`;
   const pRows=purchaseRes.data||[];
   const sRows=stockRes.data||[];
-  previousPurchaseSuppliers=[...new Set(pRows.map(r=>r.supplier).filter(Boolean))];
   const medMap=new Map();
   [...pRows,...sRows].forEach(r=>{if(r.medicine_name&&!medMap.has(r.medicine_name.toLowerCase()))medMap.set(r.medicine_name.toLowerCase(),r)});
   previousPurchaseMedicines=[...medMap.values()];
-  document.getElementById("supplierSuggestions").innerHTML=previousPurchaseSuppliers.map(x=>`<option value="${x}"></option>`).join("");
   document.getElementById("medicineSuggestions").innerHTML=previousPurchaseMedicines.map(x=>`<option value="${x.medicine_name}"></option>`).join("");
+}
+
+async function saveQuickSupplier(){
+  const msg=document.getElementById("purchaseMessage");
+  const name=document.getElementById("newSupplierName").value.trim();
+  if(!name){msg.innerHTML="<p class='error'>Supplier name is required.</p>";return;}
+  const payload={supplier_name:name,contact_person:document.getElementById("newSupplierContact").value.trim(),mobile:document.getElementById("newSupplierMobile").value.trim(),payment_terms:document.getElementById("newSupplierTerms").value.trim(),created_at:new Date().toISOString()};
+  const {error}=await db.from("suppliers").insert([payload]);
+  if(error){msg.innerHTML=`<p class='error'>Supplier save failed: ${error.message}</p>`;return;}
+  msg.innerHTML="<p class='success'>Supplier added.</p>";
+  document.getElementById("quickSupplierBox").classList.add("hidden");
+  document.getElementById("newSupplierName").value="";
+  document.getElementById("newSupplierContact").value="";
+  document.getElementById("newSupplierMobile").value="";
+  document.getElementById("newSupplierTerms").value="";
+  await loadPurchaseSuggestions();
+  document.getElementById("purchaseSupplier").value=name;
 }
 
 function applyPreviousMedicineDetails(){
@@ -100,17 +134,7 @@ function addPurchaseInvoiceItem(){
   const purchasePrice=Number(document.getElementById("purchasePrice").value||0);
   if(!med){alert("Enter medicine name first.");return;}
   if(qty<=0){alert("Quantity should be more than 0.");return;}
-  purchaseInvoiceItems.push({
-    medicine_name:med,
-    category:document.getElementById("purchaseCategory").value.trim()||null,
-    batch_no:document.getElementById("purchaseBatch").value.trim()||null,
-    expiry_date:document.getElementById("purchaseExpiry").value||null,
-    quantity:qty,
-    purchase_price:purchasePrice,
-    mrp:Number(document.getElementById("purchaseMrp").value||0),
-    sale_price:Number(document.getElementById("purchaseSalePrice").value||0),
-    total_amount:qty*purchasePrice
-  });
+  purchaseInvoiceItems.push({medicine_name:med,category:document.getElementById("purchaseCategory").value.trim()||null,batch_no:document.getElementById("purchaseBatch").value.trim()||null,expiry_date:document.getElementById("purchaseExpiry").value||null,quantity:qty,purchase_price:purchasePrice,mrp:Number(document.getElementById("purchaseMrp").value||0),sale_price:Number(document.getElementById("purchaseSalePrice").value||0),total_amount:qty*purchasePrice});
   document.getElementById("purchaseMedicine").value="";
   document.getElementById("purchaseCategory").value="";
   document.getElementById("purchaseBatch").value="";
@@ -124,7 +148,6 @@ function addPurchaseInvoiceItem(){
 }
 
 function removePurchaseItem(i){purchaseInvoiceItems.splice(i,1);renderPurchaseItems();}
-
 function renderPurchaseItems(){
   const body=document.getElementById("purchaseItemRows");
   const total=purchaseInvoiceItems.reduce((s,r)=>s+Number(r.total_amount||0),0);
@@ -137,7 +160,8 @@ async function saveCompletePurchaseInvoice(){
   const supplier=document.getElementById("purchaseSupplier").value.trim();
   const invoiceNo=document.getElementById("purchaseInvoice").value.trim();
   const invoiceDate=document.getElementById("purchaseDate").value;
-  if(!supplier||!invoiceNo||!invoiceDate){alert("Fill supplier name, invoice number and invoice date.");return;}
+  if(!supplier){alert("Select supplier name first. Use + Supplier if supplier is not listed.");return;}
+  if(!invoiceNo||!invoiceDate){alert("Fill invoice number and invoice date.");return;}
   if(!purchaseInvoiceItems.length){alert("Add at least one medicine row.");return;}
   const paymentStatus=document.getElementById("purchasePaymentStatus").value;
   const paymentMode=document.getElementById("purchasePaymentMode").value;
