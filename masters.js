@@ -1,38 +1,95 @@
+let editingSupplierId=null;
+
 async function renderSupplierMaster(){
   const el=document.getElementById("supplierMasterView");
   el.innerHTML=`
-    <div class="panel"><h2>Supplier Master</h2><p>Add and view pharmacy suppliers.</p>
-      <form id="supplierForm"><div class="grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="panel"><h2>Supplier Master</h2><p>Add, edit, and manage pharmacy suppliers.</p>
+      <form id="supplierForm"><input type="hidden" id="supId"><div class="grid" style="grid-template-columns:repeat(3,1fr)">
         <div><label>Supplier Name</label><input id="supName" required></div>
         <div><label>Contact Person</label><input id="supContact"></div>
         <div><label>Mobile</label><input id="supMobile"></div>
         <div><label>GST No</label><input id="supGst"></div>
         <div><label>Payment Terms</label><input id="supTerms" placeholder="Cash / 30 days / Credit"></div>
         <div><label>Address</label><input id="supAddress"></div>
-      </div><br><button type="submit">Save Supplier</button></form><div id="supplierMsg"></div>
+      </div><br>
+      <button type="submit" id="supplierSaveBtn">Save Supplier</button>
+      <button type="button" class="secondary hidden" id="supplierCancelEditBtn">Cancel Edit</button>
+      </form><div id="supplierMsg"></div>
     </div>
-    <div class="panel table-wrap"><h3>Suppliers</h3><table><thead><tr><th>Name</th><th>Contact</th><th>Mobile</th><th>GST</th><th>Terms</th></tr></thead><tbody id="supplierRows"></tbody></table></div>`;
+    <div class="panel table-wrap"><h3>Suppliers</h3><table><thead><tr><th>Name</th><th>Contact</th><th>Mobile</th><th>GST</th><th>Terms</th><th>Address</th><th>Actions</th></tr></thead><tbody id="supplierRows"></tbody></table></div>`;
   document.getElementById("supplierForm").onsubmit=saveSupplier;
+  document.getElementById("supplierCancelEditBtn").onclick=cancelSupplierEdit;
+  editingSupplierId=null;
   await loadSuppliers();
 }
 
 async function saveSupplier(e){
   e.preventDefault();
-  const payload={supplier_name:document.getElementById("supName").value.trim(),contact_person:document.getElementById("supContact").value.trim()||null,mobile:document.getElementById("supMobile").value.trim()||null,gst_no:document.getElementById("supGst").value.trim()||null,payment_terms:document.getElementById("supTerms").value.trim()||null,address:document.getElementById("supAddress").value.trim()||null,created_at:new Date().toISOString()};
-  const {error}=await db.from("suppliers").insert([payload]);
   const msg=document.getElementById("supplierMsg");
-  if(error){msg.innerHTML=`<p class="error">Supplier save failed: ${error.message}</p>`;return;}
-  msg.innerHTML=`<p class="success">Supplier saved.</p>`;
-  document.getElementById("supplierForm").reset();
+  const name=document.getElementById("supName").value.trim();
+  if(!name){msg.innerHTML="<p class='error'>Supplier name is required.</p>";return;}
+  const payload={supplier_name:name,contact_person:document.getElementById("supContact").value.trim()||null,mobile:document.getElementById("supMobile").value.trim()||null,gst_no:document.getElementById("supGst").value.trim()||null,payment_terms:document.getElementById("supTerms").value.trim()||null,address:document.getElementById("supAddress").value.trim()||null};
+  let error;
+  if(editingSupplierId){
+    ({error}=await db.from("suppliers").update(payload).eq("id",editingSupplierId));
+  }else{
+    payload.created_at=new Date().toISOString();
+    ({error}=await db.from("suppliers").insert([payload]));
+  }
+  if(error){msg.innerHTML=`<p class="error">Supplier ${editingSupplierId?"update":"save"} failed: ${error.message}</p>`;return;}
+  msg.innerHTML=`<p class="success">Supplier ${editingSupplierId?"updated":"saved"}.</p>`;
+  cancelSupplierEdit(false);
+  await loadSuppliers();
+}
+
+function editSupplier(id){
+  const r=(window.supplierMasterRows||[]).find(x=>String(x.id)===String(id));
+  if(!r)return;
+  editingSupplierId=r.id;
+  document.getElementById("supId").value=r.id||"";
+  document.getElementById("supName").value=r.supplier_name||"";
+  document.getElementById("supContact").value=r.contact_person||"";
+  document.getElementById("supMobile").value=r.mobile||"";
+  document.getElementById("supGst").value=r.gst_no||"";
+  document.getElementById("supTerms").value=r.payment_terms||"";
+  document.getElementById("supAddress").value=r.address||"";
+  document.getElementById("supplierSaveBtn").textContent="Update Supplier";
+  document.getElementById("supplierCancelEditBtn").classList.remove("hidden");
+  document.getElementById("supplierMsg").innerHTML=`<p class='success'>Editing ${r.supplier_name||"supplier"}.</p>`;
+  document.getElementById("supName").focus();
+}
+
+function cancelSupplierEdit(clearMessage=true){
+  editingSupplierId=null;
+  const form=document.getElementById("supplierForm");
+  if(form)form.reset();
+  const id=document.getElementById("supId");if(id)id.value="";
+  const btn=document.getElementById("supplierSaveBtn");if(btn)btn.textContent="Save Supplier";
+  const cancel=document.getElementById("supplierCancelEditBtn");if(cancel)cancel.classList.add("hidden");
+  if(clearMessage){const msg=document.getElementById("supplierMsg");if(msg)msg.innerHTML="";}
+}
+
+async function deleteSupplier(id){
+  const r=(window.supplierMasterRows||[]).find(x=>String(x.id)===String(id));
+  if(!r)return;
+  const {data:used,error:checkError}=await db.from("pharmacy_purchases").select("id").eq("supplier",r.supplier_name).limit(1);
+  if(checkError){alert("Could not check supplier usage: "+checkError.message);return;}
+  if((used||[]).length){alert("This supplier has purchase records and cannot be deleted. You may edit the supplier instead.");return;}
+  if(!confirm(`Delete supplier?\n\n${r.supplier_name||""}`))return;
+  const {error}=await db.from("suppliers").delete().eq("id",id);
+  if(error){alert("Supplier delete failed: "+error.message);return;}
+  if(String(editingSupplierId)===String(id))cancelSupplierEdit();
+  document.getElementById("supplierMsg").innerHTML="<p class='success'>Supplier deleted.</p>";
   await loadSuppliers();
 }
 
 async function loadSuppliers(){
   const body=document.getElementById("supplierRows");
   const {data,error}=await db.from("suppliers").select("*").order("supplier_name",{ascending:true});
-  if(error){body.innerHTML=`<tr><td colspan='5' class='error'>${error.message}</td></tr>`;return;}
+  if(error){body.innerHTML=`<tr><td colspan='7' class='error'>${error.message}</td></tr>`;return;}
   const rows=data||[];
-  body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.supplier_name||""}</td><td>${r.contact_person||""}</td><td>${r.mobile||""}</td><td>${r.gst_no||""}</td><td>${r.payment_terms||""}</td></tr>`).join(""):"<tr><td colspan='5'>No suppliers added.</td></tr>";
+  window.supplierMasterRows=rows;
+  body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.supplier_name||""}</td><td>${r.contact_person||""}</td><td>${r.mobile||""}</td><td>${r.gst_no||""}</td><td>${r.payment_terms||""}</td><td>${r.address||""}</td><td><button type="button" class="secondary" onclick="editSupplier(${r.id})">Edit</button> <button type="button" class="secondary" onclick="deleteSupplier(${r.id})">Delete</button></td></tr>`).join(""):"<tr><td colspan='7'>No suppliers added.</td></tr>";
 }
 
 async function renderMedicineMaster(){
