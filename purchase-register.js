@@ -68,25 +68,127 @@ async function renderPurchaseRegister(){
   document.getElementById("addPurchaseItemBtn").onclick=addPurchaseInvoiceItem;
   document.getElementById("saveInvoiceBtn").onclick=saveCompletePurchaseInvoice;
   document.getElementById("clearInvoiceBtn").onclick=()=>{purchaseInvoiceItems=[];renderPurchaseItems();};
-  renderPurchaseItems();await loadPurchases();
+  renderPurchaseItems();
+  await loadPurchases();
 }
-function updatePurchaseLineTotal(){const qty=Number(document.getElementById("purchaseQty").value||0);const price=Number(document.getElementById("purchasePrice").value||0);document.getElementById("purchaseLineTotal").value=(qty*price).toFixed(2);}
+
+function updatePurchaseLineTotal(){
+  const qty=Number(document.getElementById("purchaseQty").value||0);
+  const price=Number(document.getElementById("purchasePrice").value||0);
+  document.getElementById("purchaseLineTotal").value=(qty*price).toFixed(2);
+}
+
 async function loadPurchaseSuggestions(){
-  const [supplierRes,purchaseRes,stockRes]=await Promise.all([db.from("suppliers").select("*").order("supplier_name",{ascending:true}),db.from("pharmacy_purchases").select("supplier,medicine_name,category,unit,pack,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),db.from("pharmacy_stock").select("medicine_name,category,unit,pack,purchase_price,sale_price,mrp").order("medicine_name",{ascending:true}).limit(1000)]);
-  purchaseSuppliers=supplierRes.data||[];const sel=document.getElementById("purchaseSupplier");sel.innerHTML=purchaseSuppliers.length?`<option value="">Select supplier</option>`+purchaseSuppliers.map(s=>`<option value="${s.supplier_name}">${s.supplier_name}</option>`).join(""):`<option value="">No suppliers saved - add supplier</option>`;
-  const pRows=purchaseRes.data||[];const sRows=stockRes.data||[];const medMap=new Map();[...pRows,...sRows].forEach(r=>{if(r.medicine_name&&!medMap.has(r.medicine_name.toLowerCase()))medMap.set(r.medicine_name.toLowerCase(),r)});previousPurchaseMedicines=[...medMap.values()];document.getElementById("medicineSuggestions").innerHTML=previousPurchaseMedicines.map(x=>`<option value="${x.medicine_name}"></option>`).join("");
+  const [supplierRes,purchaseRes,stockRes]=await Promise.all([
+    db.from("suppliers").select("*").order("supplier_name",{ascending:true}),
+    db.from("pharmacy_purchases").select("supplier,medicine_name,category,unit,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
+    db.from("pharmacy_stock").select("medicine_name,category,unit,purchase_price,sale_price,mrp").order("medicine_name",{ascending:true}).limit(1000)
+  ]);
+  purchaseSuppliers=supplierRes.data||[];
+  const sel=document.getElementById("purchaseSupplier");
+  sel.innerHTML=purchaseSuppliers.length?`<option value="">Select supplier</option>`+purchaseSuppliers.map(s=>`<option value="${s.supplier_name}">${s.supplier_name}</option>`).join(""):`<option value="">No suppliers saved - add supplier</option>`;
+  const pRows=purchaseRes.data||[];
+  const sRows=stockRes.data||[];
+  const medMap=new Map();
+  [...pRows,...sRows].forEach(r=>{if(r.medicine_name&&!medMap.has(r.medicine_name.toLowerCase()))medMap.set(r.medicine_name.toLowerCase(),r)});
+  previousPurchaseMedicines=[...medMap.values()];
+  document.getElementById("medicineSuggestions").innerHTML=previousPurchaseMedicines.map(x=>`<option value="${x.medicine_name}"></option>`).join("");
 }
-async function saveQuickSupplier(){const msg=document.getElementById("purchaseMessage");const name=document.getElementById("newSupplierName").value.trim();if(!name){msg.innerHTML="<p class='error'>Supplier name is required.</p>";return;}const payload={supplier_name:name,contact_person:document.getElementById("newSupplierContact").value.trim(),mobile:document.getElementById("newSupplierMobile").value.trim(),payment_terms:document.getElementById("newSupplierTerms").value.trim(),created_at:new Date().toISOString()};const {error}=await db.from("suppliers").insert([payload]);if(error){msg.innerHTML=`<p class='error'>Supplier save failed: ${error.message}</p>`;return;}msg.innerHTML="<p class='success'>Supplier added.</p>";document.getElementById("quickSupplierBox").classList.add("hidden");["newSupplierName","newSupplierContact","newSupplierMobile","newSupplierTerms"].forEach(id=>document.getElementById(id).value="");await loadPurchaseSuggestions();document.getElementById("purchaseSupplier").value=name;}
-function applyPreviousMedicineDetails(){const name=document.getElementById("purchaseMedicine").value.trim().toLowerCase();const m=previousPurchaseMedicines.find(x=>(x.medicine_name||"").toLowerCase()===name);if(!m)return;document.getElementById("purchaseCategory").value=m.category||"Medicine";document.getElementById("purchaseUnit").value=m.unit||m.pack||"";document.getElementById("purchasePrice").value=m.purchase_price||0;document.getElementById("purchaseMrp").value=m.mrp||0;document.getElementById("purchaseSalePrice").value=m.sale_price||0;updatePurchaseLineTotal();}
-function addPurchaseInvoiceItem(){const med=document.getElementById("purchaseMedicine").value.trim();const qty=Number(document.getElementById("purchaseQty").value||0);const purchasePrice=Number(document.getElementById("purchasePrice").value||0);const category=document.getElementById("purchaseCategory").value;const unit=document.getElementById("purchaseUnit").value.trim();if(!category){alert("Select item type first.");return;}if(!med){alert("Enter item name first.");return;}if(!unit){alert("Enter unit / pack, e.g. 1x10, 1x15, 200ML.");return;}if(qty<=0){alert("Quantity should be more than 0.");return;}purchaseInvoiceItems.push({medicine_name:med,category,unit,pack:unit,batch_no:document.getElementById("purchaseBatch").value.trim()||null,expiry_date:document.getElementById("purchaseExpiry").value||null,quantity:qty,purchase_price:purchasePrice,mrp:Number(document.getElementById("purchaseMrp").value||0),sale_price:Number(document.getElementById("purchaseSalePrice").value||0),total_amount:qty*purchasePrice});document.getElementById("purchaseMedicine").value="";document.getElementById("purchaseCategory").value="Medicine";document.getElementById("purchaseUnit").value="";document.getElementById("purchaseBatch").value="";document.getElementById("purchaseExpiry").value="";document.getElementById("purchaseQty").value=0;document.getElementById("purchasePrice").value=0;document.getElementById("purchaseMrp").value=0;document.getElementById("purchaseSalePrice").value=0;updatePurchaseLineTotal();renderPurchaseItems();}
+
+async function saveQuickSupplier(){
+  const msg=document.getElementById("purchaseMessage");
+  const name=document.getElementById("newSupplierName").value.trim();
+  if(!name){msg.innerHTML="<p class='error'>Supplier name is required.</p>";return;}
+  const payload={supplier_name:name,contact_person:document.getElementById("newSupplierContact").value.trim(),mobile:document.getElementById("newSupplierMobile").value.trim(),payment_terms:document.getElementById("newSupplierTerms").value.trim(),created_at:new Date().toISOString()};
+  const {error}=await db.from("suppliers").insert([payload]);
+  if(error){msg.innerHTML=`<p class='error'>Supplier save failed: ${error.message}</p>`;return;}
+  msg.innerHTML="<p class='success'>Supplier added.</p>";
+  document.getElementById("quickSupplierBox").classList.add("hidden");
+  ["newSupplierName","newSupplierContact","newSupplierMobile","newSupplierTerms"].forEach(id=>document.getElementById(id).value="");
+  await loadPurchaseSuggestions();
+  document.getElementById("purchaseSupplier").value=name;
+}
+
+function applyPreviousMedicineDetails(){
+  const name=document.getElementById("purchaseMedicine").value.trim().toLowerCase();
+  const m=previousPurchaseMedicines.find(x=>(x.medicine_name||"").toLowerCase()===name);
+  if(!m)return;
+  document.getElementById("purchaseCategory").value=m.category||"Medicine";
+  document.getElementById("purchaseUnit").value=m.unit||"";
+  document.getElementById("purchasePrice").value=m.purchase_price||0;
+  document.getElementById("purchaseMrp").value=m.mrp||0;
+  document.getElementById("purchaseSalePrice").value=m.sale_price||0;
+  updatePurchaseLineTotal();
+}
+
+function addPurchaseInvoiceItem(){
+  const med=document.getElementById("purchaseMedicine").value.trim();
+  const qty=Number(document.getElementById("purchaseQty").value||0);
+  const purchasePrice=Number(document.getElementById("purchasePrice").value||0);
+  const category=document.getElementById("purchaseCategory").value;
+  const unit=document.getElementById("purchaseUnit").value.trim();
+  if(!category){alert("Select item type first.");return;}
+  if(!med){alert("Enter item name first.");return;}
+  if(!unit){alert("Enter unit / pack, e.g. 1x10, 1x15, 200ML.");return;}
+  if(qty<=0){alert("Quantity should be more than 0.");return;}
+  purchaseInvoiceItems.push({medicine_name:med,category,unit,batch_no:document.getElementById("purchaseBatch").value.trim()||null,expiry_date:document.getElementById("purchaseExpiry").value||null,quantity:qty,purchase_price:purchasePrice,mrp:Number(document.getElementById("purchaseMrp").value||0),sale_price:Number(document.getElementById("purchaseSalePrice").value||0),total_amount:qty*purchasePrice});
+  document.getElementById("purchaseMedicine").value="";
+  document.getElementById("purchaseCategory").value="Medicine";
+  document.getElementById("purchaseUnit").value="";
+  document.getElementById("purchaseBatch").value="";
+  document.getElementById("purchaseExpiry").value="";
+  document.getElementById("purchaseQty").value=0;
+  document.getElementById("purchasePrice").value=0;
+  document.getElementById("purchaseMrp").value=0;
+  document.getElementById("purchaseSalePrice").value=0;
+  updatePurchaseLineTotal();
+  renderPurchaseItems();
+}
+
 function removePurchaseItem(i){purchaseInvoiceItems.splice(i,1);renderPurchaseItems();}
-function renderPurchaseItems(){const body=document.getElementById("purchaseItemRows");const total=purchaseInvoiceItems.reduce((s,r)=>s+Number(r.total_amount||0),0);document.getElementById("purchaseGrandTotal").textContent=money(total);body.innerHTML=purchaseInvoiceItems.length?purchaseInvoiceItems.map((r,i)=>`<tr><td>${r.category||""}</td><td>${r.medicine_name}</td><td>${r.unit||r.pack||""}</td><td>${r.batch_no||""}</td><td>${r.expiry_date||""}</td><td>${r.quantity}</td><td>${money(r.purchase_price)}</td><td>${money(r.mrp||0)}</td><td>${money(r.sale_price)}</td><td>${money(r.total_amount)}</td><td><button type="button" class="secondary" onclick="removePurchaseItem(${i})">Remove</button></td></tr>`).join(""):"<tr><td colspan='11'>No item added to current invoice.</td></tr>";}
+
+function renderPurchaseItems(){
+  const body=document.getElementById("purchaseItemRows");
+  const total=purchaseInvoiceItems.reduce((s,r)=>s+Number(r.total_amount||0),0);
+  document.getElementById("purchaseGrandTotal").textContent=money(total);
+  body.innerHTML=purchaseInvoiceItems.length?purchaseInvoiceItems.map((r,i)=>`<tr><td>${r.category||""}</td><td>${r.medicine_name}</td><td>${r.unit||""}</td><td>${r.batch_no||""}</td><td>${r.expiry_date||""}</td><td>${r.quantity}</td><td>${money(r.purchase_price)}</td><td>${money(r.mrp||0)}</td><td>${money(r.sale_price)}</td><td>${money(r.total_amount)}</td><td><button type="button" class="secondary" onclick="removePurchaseItem(${i})">Remove</button></td></tr>`).join(""):"<tr><td colspan='11'>No item added to current invoice.</td></tr>";
+}
+
 async function saveCompletePurchaseInvoice(){
   if(currentUser.role!=="pharmacyOwner" && currentUser.role!=="accountant"){alert("Only Pharmacy Owner or Accountant can enter purchases.");return;}
-  const supplier=document.getElementById("purchaseSupplier").value.trim();const invoiceNo=document.getElementById("purchaseInvoice").value.trim();const invoiceDate=document.getElementById("purchaseDate").value;if(!supplier){alert("Select supplier name first. Use + Supplier if supplier is not listed.");return;}if(!invoiceNo||!invoiceDate){alert("Fill invoice number and invoice date.");return;}if(!purchaseInvoiceItems.length){alert("Add at least one item row.");return;}
-  const paymentStatus=document.getElementById("purchasePaymentStatus").value;const paymentMode=document.getElementById("purchasePaymentMode").value;
-  const rows=purchaseInvoiceItems.map(item=>({medicine_name:item.medicine_name,category:item.category,unit:item.unit,pack:item.pack,batch_no:item.batch_no,expiry_date:item.expiry_date,quantity:item.quantity,purchase_price:item.purchase_price,mrp:item.mrp,sale_price:item.sale_price,total_amount:item.total_amount,supplier,invoice_no:invoiceNo,invoice_date:invoiceDate,payment_status:paymentStatus,payment_mode:paymentMode,created_at:new Date().toISOString()}));
-  const stockRows=purchaseInvoiceItems.map(item=>({medicine_name:item.medicine_name,category:item.category,unit:item.unit,pack:item.pack,batch_no:item.batch_no,expiry_date:item.expiry_date,purchase_price:item.purchase_price,mrp:item.mrp,sale_price:item.sale_price,quantity:Number(item.quantity||0),created_at:new Date().toISOString()}));
-  const msg=document.getElementById("purchaseMessage");const {error:pError}=await db.from("pharmacy_purchases").insert(rows);if(pError){msg.innerHTML=`<p class="error">Invoice save failed: ${pError.message}</p>`;return;}const {error:sError}=await db.from("pharmacy_stock").insert(stockRows);if(sError){msg.innerHTML=`<p class="error">Purchase saved, but stock add failed: ${sError.message}</p>`;await loadPurchases();return;}msg.innerHTML=`<p class="success">Invoice saved. ${rows.length} inventory items added to stock.</p>`;purchaseInvoiceItems=[];document.getElementById("purchaseInvoice").value="";document.getElementById("purchaseDate").value=todayISO();renderPurchaseItems();await loadPurchaseSuggestions();await loadPurchases();
+  const supplier=document.getElementById("purchaseSupplier").value.trim();
+  const invoiceNo=document.getElementById("purchaseInvoice").value.trim();
+  const invoiceDate=document.getElementById("purchaseDate").value;
+  if(!supplier){alert("Select supplier name first. Use + Supplier if supplier is not listed.");return;}
+  if(!invoiceNo||!invoiceDate){alert("Fill invoice number and invoice date.");return;}
+  if(!purchaseInvoiceItems.length){alert("Add at least one item row.");return;}
+  const paymentStatus=document.getElementById("purchasePaymentStatus").value;
+  const paymentMode=document.getElementById("purchasePaymentMode").value;
+  const rows=purchaseInvoiceItems.map(item=>({medicine_name:item.medicine_name,category:item.category,unit:item.unit,batch_no:item.batch_no,expiry_date:item.expiry_date,quantity:item.quantity,purchase_price:item.purchase_price,mrp:item.mrp,sale_price:item.sale_price,total_amount:item.total_amount,supplier,invoice_no:invoiceNo,invoice_date:invoiceDate,payment_status:paymentStatus,payment_mode:paymentMode,created_at:new Date().toISOString()}));
+  const stockRows=purchaseInvoiceItems.map(item=>({medicine_name:item.medicine_name,category:item.category,unit:item.unit,batch_no:item.batch_no,expiry_date:item.expiry_date,purchase_price:item.purchase_price,mrp:item.mrp,sale_price:item.sale_price,quantity:Number(item.quantity||0),created_at:new Date().toISOString()}));
+  const msg=document.getElementById("purchaseMessage");
+  const {error:pError}=await db.from("pharmacy_purchases").insert(rows);
+  if(pError){msg.innerHTML=`<p class="error">Invoice save failed: ${pError.message}</p>`;return;}
+  const {error:sError}=await db.from("pharmacy_stock").insert(stockRows);
+  if(sError){msg.innerHTML=`<p class="error">Purchase saved, but stock add failed: ${sError.message}</p>`;await loadPurchases();return;}
+  msg.innerHTML=`<p class="success">Invoice saved. ${rows.length} inventory items added to stock.</p>`;
+  purchaseInvoiceItems=[];
+  document.getElementById("purchaseInvoice").value="";
+  document.getElementById("purchaseDate").value=todayISO();
+  renderPurchaseItems();
+  await loadPurchaseSuggestions();
+  await loadPurchases();
 }
-async function loadPurchases(){const body=document.getElementById("purchaseRows");if(!body)return;body.innerHTML="<tr><td colspan='10'>Loading purchases...</td></tr>";const {data,error}=await db.from("pharmacy_purchases").select("*").order("created_at",{ascending:false});if(error){body.innerHTML=`<tr><td colspan='10' class='error'>Purchase table error: ${error.message}</td></tr>`;return;}const rows=data||[];document.getElementById("purchaseCount").textContent=rows.length;document.getElementById("purchaseValue").textContent=money(rows.reduce((s,r)=>s+Number(r.total_amount||0),0));document.getElementById("purchaseDue").textContent=money(rows.filter(r=>(r.payment_status||"").toLowerCase()!=="paid").reduce((s,r)=>s+Number(r.total_amount||0),0));body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.invoice_date||rowDate(r)}</td><td>${r.supplier||""}</td><td>${r.invoice_no||""}</td><td>${r.category||""}</td><td>${r.medicine_name||""}</td><td>${r.unit||r.pack||""}</td><td>${r.batch_no||""}</td><td>${r.quantity||0}</td><td>${money(r.total_amount||0)}</td><td>${r.payment_status||""}</td></tr>`).join(""):"<tr><td colspan='10'>No purchase records.</td></tr>";}
+
+async function loadPurchases(){
+  const body=document.getElementById("purchaseRows");
+  if(!body)return;
+  body.innerHTML="<tr><td colspan='10'>Loading purchases...</td></tr>";
+  const {data,error}=await db.from("pharmacy_purchases").select("*").order("created_at",{ascending:false});
+  if(error){body.innerHTML=`<tr><td colspan='10' class='error'>Purchase table error: ${error.message}</td></tr>`;return;}
+  const rows=data||[];
+  document.getElementById("purchaseCount").textContent=rows.length;
+  document.getElementById("purchaseValue").textContent=money(rows.reduce((s,r)=>s+Number(r.total_amount||0),0));
+  document.getElementById("purchaseDue").textContent=money(rows.filter(r=>(r.payment_status||"").toLowerCase()!=="paid").reduce((s,r)=>s+Number(r.total_amount||0),0));
+  body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.invoice_date||rowDate(r)}</td><td>${r.supplier||""}</td><td>${r.invoice_no||""}</td><td>${r.category||""}</td><td>${r.medicine_name||""}</td><td>${r.unit||""}</td><td>${r.batch_no||""}</td><td>${r.quantity||0}</td><td>${money(r.total_amount||0)}</td><td>${r.payment_status||""}</td></tr>`).join(""):"<tr><td colspan='10'>No purchase records.</td></tr>";
+}
