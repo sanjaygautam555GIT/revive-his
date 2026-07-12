@@ -3,21 +3,14 @@ let previousPurchaseMedicines=[];
 let purchaseSuppliers=[];
 
 const INVENTORY_TYPES=["Medicine","Injection","Tablet","IV Fluid","Surgical Consumable","Suture","Gloves","Dressing Material","Catheter","Tube / Drain","Mesh","Stapler / Cartridge","Laparoscopic Item","OT Consumable","Ward Consumable","Lab Consumable","Other"];
-const COMMON_PACKS=["1x1","1x4","1x6","1x10","1x15","1x20","1x30","10ML","15ML","30ML","60ML","100ML","200ML","500ML","1L","Vial","Ampoule","Bottle","Kit","Pair","Piece","Box"];
-
-function inferUnitsPerPack(pack){
-  const text=String(pack||"").trim().toLowerCase();
-  const match=text.match(/(\d+)\s*[x×]\s*(\d+)/);
-  if(match)return Math.max(1,Number(match[1])*Number(match[2]));
-  return 1;
-}
+const PURCHASE_UNITS=["Strip","Box","Bottle","Vial","Ampoule","Tube","Sachet","Kit","Pair","Piece","Bag","Roll","Pack"];
 
 async function renderPurchaseRegister(){
   const el=document.getElementById("purchaseRegisterView");
   el.innerHTML=`
     <div class="panel">
       <h2>Inventory & Pharmacy Purchase Register</h2>
-      <p>Purchase in strips, boxes, bottles or packs. Stock is converted automatically into individual sale units.</p>
+      <p>Enter how the item is purchased and how many individual units are contained in each purchase unit.</p>
       <div class="grid" style="grid-template-columns:1.4fr auto 1fr 1fr 1fr">
         <div><label>Supplier Name</label><select id="purchaseSupplier"><option value="">Loading suppliers...</option></select></div>
         <div><label>&nbsp;</label><button type="button" class="secondary" id="quickAddSupplierBtn">+ Supplier</button></div>
@@ -43,16 +36,16 @@ async function renderPurchaseRegister(){
       <h3>Add Inventory Item</h3>
       <div class="grid" style="grid-template-columns:repeat(4,1fr)">
         <div><label>Item Type</label><select id="purchaseCategory">${INVENTORY_TYPES.map(x=>`<option>${x}</option>`).join("")}</select></div>
-        <div><label>Item Name</label><input id="purchaseMedicine" list="medicineSuggestions" placeholder="Paracetamol 500 mg"><datalist id="medicineSuggestions"></datalist></div>
-        <div><label>Pack</label><input id="purchaseUnit" list="packSuggestions" placeholder="1x10 / 1x15 / Bottle"><datalist id="packSuggestions">${COMMON_PACKS.map(x=>`<option value="${x}"></option>`).join("")}</datalist></div>
-        <div><label>Units per Pack</label><input id="purchaseUnitsPerPack" type="number" min="1" value="1"></div>
+        <div><label>Item Name</label><input id="purchaseMedicine" list="medicineSuggestions" placeholder="Algesia SP"><datalist id="medicineSuggestions"></datalist></div>
+        <div><label>Purchase Unit</label><input id="purchaseUnit" list="purchaseUnitSuggestions" placeholder="Strip / Box / Bottle"><datalist id="purchaseUnitSuggestions">${PURCHASE_UNITS.map(x=>`<option value="${x}"></option>`).join("")}</datalist></div>
+        <div><label>Units in Each Purchase Unit</label><input id="purchaseUnitsPerPack" type="number" min="1" value="1" placeholder="10 tablets per strip"></div>
         <div><label>Batch / Lot No</label><input id="purchaseBatch"></div>
         <div><label>Expiry Date</label><input id="purchaseExpiry" type="date"></div>
-        <div><label>Purchase Qty (Packs)</label><input id="purchaseQty" type="number" min="1" value="0"></div>
-        <div><label>Total Sale Units</label><input id="purchaseTotalUnits" readonly value="0"></div>
-        <div><label>Purchase Rate per Pack</label><input id="purchasePrice" type="number" value="0" step="0.01"></div>
-        <div><label>MRP per Pack</label><input id="purchaseMrp" type="number" value="0" step="0.01"></div>
-        <div><label>Sale Price per Unit</label><input id="purchaseSalePrice" type="number" value="0" step="0.01"></div>
+        <div><label>Purchase Quantity</label><input id="purchaseQty" type="number" min="1" value="0" placeholder="Number of strips"></div>
+        <div><label>Total Individual Units</label><input id="purchaseTotalUnits" readonly value="0"></div>
+        <div><label>Purchase Rate per Unit Bought</label><input id="purchasePrice" type="number" value="0" step="0.01" placeholder="Rate per strip"></div>
+        <div><label>MRP per Unit Bought</label><input id="purchaseMrp" type="number" value="0" step="0.01" placeholder="MRP per strip"></div>
+        <div><label>Sale Price per Individual Unit</label><input id="purchaseSalePrice" type="number" value="0" step="0.01" placeholder="Price per tablet"></div>
         <div><label>Line Total</label><input id="purchaseLineTotal" readonly value="0"></div>
       </div>
       <p id="purchaseUnitHint"></p>
@@ -62,14 +55,14 @@ async function renderPurchaseRegister(){
 
     <div class="panel table-wrap">
       <h3>Current Invoice</h3>
-      <table><thead><tr><th>Type</th><th>Item</th><th>Pack</th><th>Packs</th><th>Units/Pack</th><th>Stock Units</th><th>Batch</th><th>Pack Rate</th><th>Pack MRP</th><th>Unit Sale</th><th>Total</th><th>Action</th></tr></thead><tbody id="purchaseItemRows"></tbody></table>
+      <table><thead><tr><th>Type</th><th>Item</th><th>Purchase Unit</th><th>Qty Bought</th><th>Units Each</th><th>Total Units</th><th>Batch</th><th>Purchase Rate</th><th>MRP</th><th>Unit Sale</th><th>Total</th><th>Action</th></tr></thead><tbody id="purchaseItemRows"></tbody></table>
       <h3>Grand Total: <span id="purchaseGrandTotal">₹0</span></h3>
       <button id="saveInvoiceBtn" type="button">Save Invoice & Add Stock</button>
       <button id="clearInvoiceBtn" type="button" class="secondary">Clear Invoice</button>
     </div>
 
     <div class="grid cards" style="margin-top:16px"><div class="card"><span>Purchase Rows</span><strong id="purchaseCount">0</strong></div><div class="card"><span>Total Purchase Value</span><strong id="purchaseValue">₹0</strong></div><div class="card"><span>Due Purchase Value</span><strong id="purchaseDue">₹0</strong></div></div>
-    <div class="panel table-wrap"><h3>Recent Purchase Items</h3><table><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Item</th><th>Pack</th><th>Packs</th><th>Units/Pack</th><th>Total</th><th>Status</th></tr></thead><tbody id="purchaseRows"></tbody></table></div>`;
+    <div class="panel table-wrap"><h3>Recent Purchase Items</h3><table><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Item</th><th>Purchase Unit</th><th>Qty Bought</th><th>Units Each</th><th>Total</th><th>Status</th></tr></thead><tbody id="purchaseRows"></tbody></table></div>`;
 
   purchaseInvoiceItems=[];
   await loadPurchaseSuggestions();
@@ -77,7 +70,6 @@ async function renderPurchaseRegister(){
   document.getElementById("cancelQuickSupplierBtn").onclick=()=>document.getElementById("quickSupplierBox").classList.add("hidden");
   document.getElementById("saveQuickSupplierBtn").onclick=saveQuickSupplier;
   document.getElementById("purchaseMedicine").onchange=applyPreviousMedicineDetails;
-  document.getElementById("purchaseUnit").oninput=applyPackConversion;
   document.getElementById("purchaseUnitsPerPack").oninput=updatePurchaseCalculations;
   document.getElementById("purchaseQty").oninput=updatePurchaseCalculations;
   document.getElementById("purchasePrice").oninput=updatePurchaseCalculations;
@@ -90,12 +82,6 @@ async function renderPurchaseRegister(){
   await loadPurchases();
 }
 
-function applyPackConversion(){
-  const pack=document.getElementById("purchaseUnit").value;
-  document.getElementById("purchaseUnitsPerPack").value=inferUnitsPerPack(pack);
-  autoUnitSalePrice();
-}
-
 function autoUnitSalePrice(){
   const units=Math.max(1,Number(document.getElementById("purchaseUnitsPerPack").value||1));
   const mrp=Number(document.getElementById("purchaseMrp").value||0);
@@ -104,13 +90,14 @@ function autoUnitSalePrice(){
 }
 
 function updatePurchaseCalculations(){
-  const packs=Number(document.getElementById("purchaseQty").value||0);
-  const unitsPerPack=Math.max(1,Number(document.getElementById("purchaseUnitsPerPack").value||1));
-  const packRate=Number(document.getElementById("purchasePrice").value||0);
-  const totalUnits=packs*unitsPerPack;
+  const purchaseQty=Number(document.getElementById("purchaseQty").value||0);
+  const unitsEach=Math.max(1,Number(document.getElementById("purchaseUnitsPerPack").value||1));
+  const purchaseRate=Number(document.getElementById("purchasePrice").value||0);
+  const totalUnits=purchaseQty*unitsEach;
   document.getElementById("purchaseTotalUnits").value=totalUnits;
-  document.getElementById("purchaseLineTotal").value=(packs*packRate).toFixed(2);
-  document.getElementById("purchaseUnitHint").textContent=`${packs||0} pack(s) × ${unitsPerPack} unit(s) = ${totalUnits} individual sale unit(s).`;
+  document.getElementById("purchaseLineTotal").value=(purchaseQty*purchaseRate).toFixed(2);
+  const purchaseUnit=document.getElementById("purchaseUnit").value.trim()||"purchase unit";
+  document.getElementById("purchaseUnitHint").textContent=`${purchaseQty||0} ${purchaseUnit}(s) × ${unitsEach} individual unit(s) = ${totalUnits} units available for sale.`;
 }
 
 async function loadPurchaseSuggestions(){
@@ -147,10 +134,10 @@ function applyPreviousMedicineDetails(){
   const m=previousPurchaseMedicines.find(x=>(x.medicine_name||"").toLowerCase()===name);
   if(!m)return;
   document.getElementById("purchaseCategory").value=m.category||"Medicine";
-  document.getElementById("purchaseUnit").value=m.unit||"";
-  document.getElementById("purchaseUnitsPerPack").value=m.units_per_pack||inferUnitsPerPack(m.unit);
-  document.getElementById("purchasePrice").value=m.purchase_price||0;
-  document.getElementById("purchaseMrp").value=m.mrp||0;
+  document.getElementById("purchaseUnit").value=m.unit||"Strip";
+  document.getElementById("purchaseUnitsPerPack").value=m.units_per_pack||1;
+  document.getElementById("purchasePrice").value=(Number(m.purchase_price||0)*Number(m.units_per_pack||1)).toFixed(2);
+  document.getElementById("purchaseMrp").value=(Number(m.mrp||0)*Number(m.units_per_pack||1)).toFixed(2);
   document.getElementById("purchaseSalePrice").value=m.sale_price||0;
   updatePurchaseCalculations();
 }
@@ -158,16 +145,16 @@ function applyPreviousMedicineDetails(){
 function addPurchaseInvoiceItem(){
   const medicineName=document.getElementById("purchaseMedicine").value.trim();
   const category=document.getElementById("purchaseCategory").value;
-  const pack=document.getElementById("purchaseUnit").value.trim();
-  const packQty=Number(document.getElementById("purchaseQty").value||0);
-  const unitsPerPack=Math.max(1,Number(document.getElementById("purchaseUnitsPerPack").value||1));
-  const packRate=Number(document.getElementById("purchasePrice").value||0);
-  const packMrp=Number(document.getElementById("purchaseMrp").value||0);
-  const unitSalePrice=Number(document.getElementById("purchaseSalePrice").value||0);
+  const purchaseUnit=document.getElementById("purchaseUnit").value.trim();
+  const purchaseQty=Number(document.getElementById("purchaseQty").value||0);
+  const unitsEach=Math.max(1,Number(document.getElementById("purchaseUnitsPerPack").value||1));
+  const purchaseRate=Number(document.getElementById("purchasePrice").value||0);
+  const mrpPerPurchaseUnit=Number(document.getElementById("purchaseMrp").value||0);
+  const salePricePerIndividualUnit=Number(document.getElementById("purchaseSalePrice").value||0);
   if(!medicineName){alert("Enter item name first.");return;}
-  if(!pack){alert("Enter pack, for example 1x10 or 1x15.");return;}
-  if(packQty<=0){alert("Purchase quantity must be more than 0.");return;}
-  purchaseInvoiceItems.push({medicine_name:medicineName,category,unit:pack,units_per_pack:unitsPerPack,batch_no:document.getElementById("purchaseBatch").value.trim()||null,expiry_date:document.getElementById("purchaseExpiry").value||null,quantity:packQty,total_units:packQty*unitsPerPack,purchase_price:packRate,mrp:packMrp,sale_price:unitSalePrice,total_amount:packQty*packRate});
+  if(!purchaseUnit){alert("Enter purchase unit, for example Strip, Box or Bottle.");return;}
+  if(purchaseQty<=0){alert("Purchase quantity must be more than 0.");return;}
+  purchaseInvoiceItems.push({medicine_name:medicineName,category,unit:purchaseUnit,units_per_pack:unitsEach,batch_no:document.getElementById("purchaseBatch").value.trim()||null,expiry_date:document.getElementById("purchaseExpiry").value||null,quantity:purchaseQty,total_units:purchaseQty*unitsEach,purchase_price:purchaseRate,mrp:mrpPerPurchaseUnit,sale_price:salePricePerIndividualUnit,total_amount:purchaseQty*purchaseRate});
   ["purchaseMedicine","purchaseUnit","purchaseBatch","purchaseExpiry"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("purchaseCategory").value="Medicine";
   document.getElementById("purchaseUnitsPerPack").value=1;
@@ -222,5 +209,5 @@ async function loadPurchases(){
   document.getElementById("purchaseCount").textContent=rows.length;
   document.getElementById("purchaseValue").textContent=money(rows.reduce((sum,r)=>sum+Number(r.total_amount||0),0));
   document.getElementById("purchaseDue").textContent=money(rows.filter(r=>String(r.payment_status||"").toLowerCase()!=="paid").reduce((sum,r)=>sum+Number(r.total_amount||0),0));
-  body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.invoice_date||rowDate(r)}</td><td>${r.supplier||""}</td><td>${r.invoice_no||""}</td><td>${r.medicine_name||""}</td><td>${r.unit||""}</td><td>${r.quantity||0}</td><td>${r.units_per_pack||inferUnitsPerPack(r.unit)}</td><td>${money(r.total_amount||0)}</td><td>${r.payment_status||""}</td></tr>`).join(""):"<tr><td colspan='9'>No purchase records.</td></tr>";
+  body.innerHTML=rows.length?rows.slice(0,50).map(r=>`<tr><td>${r.invoice_date||rowDate(r)}</td><td>${r.supplier||""}</td><td>${r.invoice_no||""}</td><td>${r.medicine_name||""}</td><td>${r.unit||""}</td><td>${r.quantity||0}</td><td>${r.units_per_pack||1}</td><td>${money(r.total_amount||0)}</td><td>${r.payment_status||""}</td></tr>`).join(""):"<tr><td colspan='9'>No purchase records.</td></tr>";
 }
