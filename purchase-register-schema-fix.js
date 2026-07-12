@@ -1,11 +1,11 @@
-// Compatibility layer for databases that do not yet contain pharmacy purchase/stock unit columns.
-// The UI still uses item type configuration for Strip/Box/Bottle and dispensing calculations.
+// Compatibility layer for the existing pharmacy_purchases and pharmacy_stock schema.
+// Pack conversion is used in the UI only. Database stock is stored as final dispensing quantity.
 
 async function loadPurchaseSuggestions(){
   const [supplierRes,purchaseRes,stockRes]=await Promise.all([
     db.from("suppliers").select("*").order("supplier_name"),
-    db.from("pharmacy_purchases").select("supplier,medicine_name,category,units_per_pack,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
-    db.from("pharmacy_stock").select("medicine_name,category,units_per_pack,purchase_price,sale_price,mrp").order("medicine_name").limit(1000)
+    db.from("pharmacy_purchases").select("supplier,medicine_name,category,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
+    db.from("pharmacy_stock").select("medicine_name,category,purchase_price,sale_price,mrp").order("medicine_name").limit(1000)
   ]);
 
   purchaseSuppliers=supplierRes.data||[];
@@ -46,7 +46,6 @@ async function saveCompletePurchaseInvoice(){
   const purchaseRows=purchaseInvoiceItems.map(item=>({
     medicine_name:item.medicine_name,
     category:item.category,
-    units_per_pack:item.units_per_pack,
     batch_no:item.batch_no,
     expiry_date:item.expiry_date,
     quantity:item.quantity,
@@ -62,18 +61,20 @@ async function saveCompletePurchaseInvoice(){
     created_at:now
   }));
 
-  const stockRows=purchaseInvoiceItems.map(item=>({
-    medicine_name:item.medicine_name,
-    category:item.category,
-    units_per_pack:item.units_per_pack,
-    batch_no:item.batch_no,
-    expiry_date:item.expiry_date,
-    purchase_price:Number(item.purchase_price||0)/Math.max(1,Number(item.units_per_pack||1)),
-    mrp:Number(item.mrp||0)/Math.max(1,Number(item.units_per_pack||1)),
-    sale_price:item.sale_price,
-    quantity:item.total_units,
-    created_at:now
-  }));
+  const stockRows=purchaseInvoiceItems.map(item=>{
+    const divisor=Math.max(1,Number(item.units_per_pack||1));
+    return {
+      medicine_name:item.medicine_name,
+      category:item.category,
+      batch_no:item.batch_no,
+      expiry_date:item.expiry_date,
+      purchase_price:Number(item.purchase_price||0)/divisor,
+      mrp:Number(item.mrp||0)/divisor,
+      sale_price:item.sale_price,
+      quantity:item.total_units,
+      created_at:now
+    };
+  });
 
   const msg=document.getElementById("purchaseMessage");
   const {error:purchaseError}=await db.from("pharmacy_purchases").insert(purchaseRows);
