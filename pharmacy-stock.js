@@ -89,14 +89,32 @@ function cancelStockEdit(){
   document.getElementById("stockEditMessage").innerHTML="";
 }
 
+async function findMatchingPurchaseForStock(stockRow){
+  const {data,error}=await db.from("pharmacy_purchases").select("*").order("created_at",{ascending:false});
+  if(error)return {row:null,error};
+  const oldName=String(stockRow.medicine_name||"").trim().toLowerCase();
+  const oldBatch=String(stockRow.batch_no||"").trim().toLowerCase();
+  const match=(data||[]).find(r=>{
+    const sameName=String(r.medicine_name||"").trim().toLowerCase()===oldName;
+    const sameBatch=String(r.batch_no||"").trim().toLowerCase()===oldBatch;
+    return sameName&&sameBatch;
+  });
+  return {row:match||null,error:null};
+}
+
 async function saveStockEdit(){
   const msg=document.getElementById("stockEditMessage");
   if(currentUser?.role!=="pharmacyOwner"){msg.innerHTML="<p class='error'>Only Pharmacy Owner can edit stock.</p>";return;}
   if(editingStockId===null){msg.innerHTML="<p class='error'>Select a stock row first.</p>";return;}
+
+  const original=pharmacyStockEditRows.find(r=>String(r.id)===String(editingStockId));
+  if(!original){msg.innerHTML="<p class='error'>Original stock row was not found.</p>";return;}
+
   const name=document.getElementById("editStockName").value.trim();
   const qty=Number(document.getElementById("editStockQty").value||0);
   if(!name){msg.innerHTML="<p class='error'>Item name is required.</p>";return;}
   if(qty<0){msg.innerHTML="<p class='error'>Quantity cannot be negative.</p>";return;}
+
   const payload={
     category:document.getElementById("editStockCategory").value.trim()||"Medicine",
     medicine_name:name,
@@ -107,10 +125,44 @@ async function saveStockEdit(){
     mrp:Number(document.getElementById("editStockMrp").value||0),
     sale_price:Number(document.getElementById("editStockSalePrice").value||0)
   };
+
+  const purchaseMatch=await findMatchingPurchaseForStock(original);
+  if(purchaseMatch.error){msg.innerHTML=`<p class='error'>Could not check purchase register: ${purchaseMatch.error.message}</p>`;return;}
+
   const {data,error}=await db.from("pharmacy_stock").update(payload).eq("id",editingStockId).select();
   if(error){msg.innerHTML=`<p class='error'>Stock update failed: ${error.message}</p>`;return;}
   if(!data||!data.length){msg.innerHTML="<p class='error'>Stock was not updated. Supabase update permission may be missing.</p>";return;}
-  msg.innerHTML="<p class='success'>Stock updated successfully.</p>";
+
+  let purchaseMessage="";
+  if(purchaseMatch.row){
+    const unitsPerPack=Math.max(1,Number(purchaseMatch.row.units_per_pack||original.units_per_pack||1));
+    const purchaseQty=qty/unitsPerPack;
+    const purchaseRate=payload.purchase_price*unitsPerPack;
+    const purchaseMrp=payload.mrp*unitsPerPack;
+    const purchasePayload={
+      category:payload.category,
+      medicine_name:payload.medicine_name,
+      batch_no:payload.batch_no,
+      expiry_date:payload.expiry_date,
+      quantity:purchaseQty,
+      purchase_price:purchaseRate,
+      mrp:purchaseMrp,
+      sale_price:payload.sale_price,
+      total_amount:purchaseQty*purchaseRate
+    };
+    const {data:pData,error:pError}=await db.from("pharmacy_purchases").update(purchasePayload).eq("id",purchaseMatch.row.id).select();
+    if(pError){
+      purchaseMessage=`<br><span class='error'>Purchase Register sync failed: ${pError.message}</span>`;
+    }else if(!pData||!pData.length){
+      purchaseMessage="<br><span class='error'>Stock updated, but Purchase Register update permission is missing.</span>";
+    }else{
+      purchaseMessage="<br>Matching Purchase Register entry updated.";
+    }
+  }else{
+    purchaseMessage="<br>No matching purchase entry was found for the original item name and batch.";
+  }
+
+  msg.innerHTML=`<p class='success'>Stock updated successfully.${purchaseMessage}</p>`;
   await loadSimpleStock();
-  setTimeout(cancelStockEdit,500);
+  setTimeout(cancelStockEdit,1200);
 }
