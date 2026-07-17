@@ -21,10 +21,10 @@ async function loadSimpleStock(){
     if(!purchaseMap.has(key))purchaseMap.set(key,r);
   });
 
-  pharmacyStockEditRows=(stockRes.data||[]).map(r=>{
-    const p=purchaseMap.get(stockMatchKey(r.medicine_name,r.batch_no))||null;
-    return {...r,_purchase:p};
-  });
+  pharmacyStockEditRows=(stockRes.data||[]).map(r=>({
+    ...r,
+    _purchase:purchaseMap.get(stockMatchKey(r.medicine_name,r.batch_no))||null
+  }));
 
   document.getElementById("stockCount").textContent=pharmacyStockEditRows.length;
   document.getElementById("lowStockCount").textContent=pharmacyStockEditRows.filter(r=>Number(r.quantity||0)<=10).length;
@@ -41,7 +41,6 @@ async function loadSimpleStock(){
     const cfg=STOCK_ITEM_CONFIG[r.category]||STOCK_ITEM_CONFIG.Other;
     const purchaseQty=p?Number(p.quantity||0):null;
     const unitsPerPack=(p&&purchaseQty>0)?Number(r.quantity||0)/purchaseQty:1;
-    const packText=p?`${p.unit||cfg.buy}${unitsPerPack>1?` × ${unitsPerPack:g=>g}`:""}`:cfg.buy;
     return `<tr>
       <td>${r.category||"Other"}</td>
       <td>${r.medicine_name||""}</td>
