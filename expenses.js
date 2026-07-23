@@ -7,6 +7,22 @@ const EXPENSE_CATEGORIES=[
   "Equipment Purchase","Housekeeping","Internet / Telephone","Miscellaneous"
 ];
 
+function expenseStoredDetails(r){
+  const raw=String(r.remarks||r.notes||"");
+  const paidMatch=raw.match(/(?:^|\|)\s*Paid To:\s*([^|]+)/i);
+  const refMatch=raw.match(/(?:^|\|)\s*Reference:\s*([^|]+)/i);
+  const cleanRemarks=raw
+    .replace(/(?:^|\|)\s*Paid To:\s*[^|]+/ig,"")
+    .replace(/(?:^|\|)\s*Reference:\s*[^|]+/ig,"")
+    .replace(/^\s*\|\s*|\s*\|\s*$/g,"")
+    .trim();
+  return {
+    paidTo:r.paid_to||r.vendor||r.vendor_name||r.payee||r.party_name||(paidMatch?paidMatch[1].trim():""),
+    reference:r.reference_no||r.voucher_no||r.reference||(refMatch?refMatch[1].trim():""),
+    remarks:cleanRemarks
+  };
+}
+
 async function renderExpenses(){
   const el=document.getElementById("expensesView");
   el.innerHTML=`
@@ -99,14 +115,8 @@ async function saveExpense(e){
     payload.created_at=new Date().toISOString();
     result=await db.from("expenses").insert([payload]).select();
   }
-  if(result.error){
-    msg.innerHTML=`<p class='error'>Expense save failed: ${result.error.message}</p>`;
-    return;
-  }
-  if(!result.data||!result.data.length){
-    msg.innerHTML="<p class='error'>Expense was not saved. Check Supabase insert/update policy.</p>";
-    return;
-  }
+  if(result.error){msg.innerHTML=`<p class='error'>Expense save failed: ${result.error.message}</p>`;return;}
+  if(!result.data||!result.data.length){msg.innerHTML="<p class='error'>Expense was not saved. Check Supabase insert/update policy.</p>";return;}
   const wasEditing=editingExpenseId!==null;
   clearExpenseForm();
   document.getElementById("expenseMessage").innerHTML=`<p class='success'>Expense ${wasEditing?"updated":"saved"} successfully.</p>`;
@@ -125,39 +135,30 @@ async function loadExpenses(){
   document.getElementById("expenseToday").textContent=money(expenseRows.filter(r=>(r.expense_date||"").slice(0,10)===today).reduce((s,r)=>s+Number(r.amount||0),0));
   document.getElementById("expenseMonth").textContent=money(expenseRows.filter(r=>(r.expense_date||"").slice(0,7)===month).reduce((s,r)=>s+Number(r.amount||0),0));
   document.getElementById("expenseCount").textContent=expenseRows.length;
-
   const from=document.getElementById("expenseFrom")?.value||"0000-01-01";
   const to=document.getElementById("expenseTo")?.value||"9999-12-31";
   const category=document.getElementById("expenseFilterCategory")?.value||"";
-  const filtered=expenseRows.filter(r=>{
-    const d=(r.expense_date||rowDate(r)||"").slice(0,10);
-    return d>=from&&d<=to&&(!category||r.category===category);
-  });
-  body.innerHTML=filtered.length?filtered.map(r=>`<tr>
-    <td>${r.expense_date||rowDate(r)}</td>
-    <td>${r.category||""}</td>
-    <td>${r.paid_to||""}</td>
-    <td>${r.payment_mode||""}</td>
-    <td>${money(r.amount||0)}</td>
-    <td>${r.reference_no||""}</td>
-    <td>${r.remarks||""}</td>
-    <td>${currentUser?.role==="accountant"?`<button class="secondary" onclick="editExpense('${r.id}')">Edit</button> <button class="secondary" onclick="deleteExpense('${r.id}')">Delete</button>`:"View only"}</td>
-  </tr>`).join(""):"<tr><td colspan='8'>No expenses found for selected filter.</td></tr>";
+  const filtered=expenseRows.filter(r=>{const d=(r.expense_date||rowDate(r)||"").slice(0,10);return d>=from&&d<=to&&(!category||r.category===category);});
+  body.innerHTML=filtered.length?filtered.map(r=>{const x=expenseStoredDetails(r);return `<tr>
+    <td>${r.expense_date||rowDate(r)}</td><td>${r.category||""}</td><td>${x.paidTo||"—"}</td>
+    <td>${r.payment_mode||""}</td><td>${money(r.amount||0)}</td><td>${x.reference||""}</td><td>${x.remarks||""}</td>
+    <td>${currentUser?.role==="accountant"?`<button class="secondary" onclick="editExpense('${r.id}')">Edit</button> <button class="secondary" onclick="deleteExpense('${r.id}')">Delete</button>`:"View only"}</td></tr>`;}).join(""):"<tr><td colspan='8'>No expenses found for selected filter.</td></tr>";
 }
 
 function editExpense(id){
   if(currentUser?.role!=="accountant"){alert("Only Accountant can edit expenses.");return;}
   const r=expenseRows.find(x=>String(x.id)===String(id));
   if(!r)return;
+  const x=expenseStoredDetails(r);
   editingExpenseId=r.id;
   document.getElementById("expenseId").value=r.id;
   document.getElementById("expenseDate").value=r.expense_date||todayISO();
   document.getElementById("expenseCategory").value=r.category||EXPENSE_CATEGORIES[0];
   document.getElementById("expenseAmount").value=Number(r.amount||0);
   document.getElementById("expensePaymentMode").value=r.payment_mode||"Cash";
-  document.getElementById("expensePaidTo").value=r.paid_to||"";
-  document.getElementById("expenseReference").value=r.reference_no||"";
-  document.getElementById("expenseRemarks").value=r.remarks||"";
+  document.getElementById("expensePaidTo").value=x.paidTo||"";
+  document.getElementById("expenseReference").value=x.reference||"";
+  document.getElementById("expenseRemarks").value=x.remarks||"";
   document.getElementById("saveExpenseBtn").textContent="Update Expense";
   document.getElementById("cancelExpenseEditBtn").classList.remove("hidden");
   document.getElementById("expenseForm").scrollIntoView({behavior:"smooth",block:"start"});
