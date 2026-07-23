@@ -6,34 +6,18 @@
     return match?match[1]:null;
   }
 
-  function mergeExpenseText(description,remarks){
-    const d=String(description||"").trim();
-    const r=String(remarks||"").trim();
-    if(d&&r)return `Description: ${d} | Remarks: ${r}`;
-    if(d)return `Description: ${d}`;
-    return r||null;
-  }
-
   async function adaptiveExpenseWrite(mode,id,fullPayload){
     const payload={...fullPayload};
-    const description=payload.description;
-    const remarks=payload.remarks;
     let attempts=0;
-
     while(attempts<10){
       attempts++;
-      let query;
-      if(mode==="update")query=db.from("expenses").update(payload).eq("id",id).select();
-      else query=db.from("expenses").insert([payload]).select();
-      const result=await query;
+      const result=mode==="update"
+        ?await db.from("expenses").update(payload).eq("id",id).select()
+        :await db.from("expenses").insert([payload]).select();
       if(!result.error)return result;
-
       const missing=missingColumnFromError(result.error);
       if(!missing||!(missing in payload))return result;
-
       delete payload[missing];
-      if(missing==="description"&&("remarks" in payload))payload.remarks=mergeExpenseText(description,remarks);
-      if(missing==="remarks"&&("description" in payload))payload.description=description||remarks||null;
     }
     return {data:null,error:{message:"Expense schema compatibility retry limit reached."}};
   }
@@ -47,16 +31,14 @@
     }
 
     const amount=Number(document.getElementById("expenseAmount").value||0);
-    const description=document.getElementById("expenseDescription").value.trim();
-    if(amount<=0||!description){
-      msg.innerHTML="<p class='error'>Description and a valid amount are required.</p>";
+    if(amount<=0){
+      msg.innerHTML="<p class='error'>Please enter a valid amount.</p>";
       return;
     }
 
     const payload={
       expense_date:document.getElementById("expenseDate").value,
       category:document.getElementById("expenseCategory").value,
-      description,
       amount,
       payment_mode:document.getElementById("expensePaymentMode").value,
       paid_to:document.getElementById("expensePaidTo").value.trim()||null,
