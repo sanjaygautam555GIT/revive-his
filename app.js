@@ -20,7 +20,7 @@ function loadScriptOnce(src){return new Promise((resolve,reject)=>{if(document.q
 async function openPharmacyBilling(){await loadScriptOnce("pharmacy-billing.js");return renderPharmacyBilling()}
 async function openCashBook(){await loadScriptOnce("cash-book.js");return renderCashBook()}
 async function openReportsCenter(){await loadScriptOnce("reports.js");return renderReportsCenter()}
-async function openOPD(){await loadScriptOnce("opd.js");return renderOPD()}
+async function openOPD(){await loadScriptOnce("opd.js");await loadScriptOnce("opd-delete.js");return renderOPD()}
 async function openIPD(){await loadScriptOnce("ipd.js");return renderIPD()}
 async function openIPDCharges(){await loadScriptOnce("ipd-charges.js");return renderIPDCharges()}
 async function openIPDBilling(){await loadScriptOnce("ipd-billing.js");return renderIPDBilling()}
