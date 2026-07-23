@@ -18,10 +18,9 @@ async function renderExpenses(){
         <div class="grid" style="grid-template-columns:repeat(4,1fr)">
           <div><label>Expense Date</label><input id="expenseDate" type="date" value="${todayISO()}" required></div>
           <div><label>Category</label><select id="expenseCategory">${EXPENSE_CATEGORIES.map(x=>`<option>${x}</option>`).join("")}</select></div>
-          <div><label>Description</label><input id="expenseDescription" placeholder="What was paid for?" required></div>
           <div><label>Amount</label><input id="expenseAmount" type="number" min="0.01" step="0.01" required></div>
           <div><label>Payment Mode</label><select id="expensePaymentMode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Credit</option></select></div>
-          <div><label>Paid To / Vendor</label><input id="expensePaidTo" placeholder="Person or supplier"></div>
+          <div><label>Paid To / Vendor</label><input id="expensePaidTo" placeholder="Person or supplier (optional)"></div>
           <div><label>Reference / Voucher No.</label><input id="expenseReference" placeholder="Optional"></div>
           <div><label>Remarks</label><input id="expenseRemarks" placeholder="Optional"></div>
         </div><br>
@@ -50,7 +49,7 @@ async function renderExpenses(){
     <div class="panel table-wrap">
       <h3>Expense Register</h3>
       <table>
-        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid To</th><th>Mode</th><th>Amount</th><th>Reference</th><th>Remarks</th><th>Action</th></tr></thead>
+        <thead><tr><th>Date</th><th>Category</th><th>Paid To</th><th>Mode</th><th>Amount</th><th>Reference</th><th>Remarks</th><th>Action</th></tr></thead>
         <tbody id="expenseRows"></tbody>
       </table>
     </div>`;
@@ -80,15 +79,13 @@ async function saveExpense(e){
     return;
   }
   const amount=Number(document.getElementById("expenseAmount").value||0);
-  const description=document.getElementById("expenseDescription").value.trim();
-  if(amount<=0||!description){
-    msg.innerHTML="<p class='error'>Description and a valid amount are required.</p>";
+  if(amount<=0){
+    msg.innerHTML="<p class='error'>Please enter a valid amount.</p>";
     return;
   }
   const payload={
     expense_date:document.getElementById("expenseDate").value,
     category:document.getElementById("expenseCategory").value,
-    description,
     amount,
     payment_mode:document.getElementById("expensePaymentMode").value,
     paid_to:document.getElementById("expensePaidTo").value.trim()||null,
@@ -110,17 +107,18 @@ async function saveExpense(e){
     msg.innerHTML="<p class='error'>Expense was not saved. Check Supabase insert/update policy.</p>";
     return;
   }
-  msg.innerHTML=`<p class='success'>Expense ${editingExpenseId!==null?"updated":"saved"} successfully.</p>`;
+  const wasEditing=editingExpenseId!==null;
   clearExpenseForm();
+  document.getElementById("expenseMessage").innerHTML=`<p class='success'>Expense ${wasEditing?"updated":"saved"} successfully.</p>`;
   await loadExpenses();
 }
 
 async function loadExpenses(){
   const body=document.getElementById("expenseRows");
   if(!body)return;
-  body.innerHTML="<tr><td colspan='9'>Loading expenses...</td></tr>";
+  body.innerHTML="<tr><td colspan='8'>Loading expenses...</td></tr>";
   const {data,error}=await db.from("expenses").select("*").order("expense_date",{ascending:false}).order("created_at",{ascending:false});
-  if(error){body.innerHTML=`<tr><td colspan='9' class='error'>Expense load failed: ${error.message}</td></tr>`;return;}
+  if(error){body.innerHTML=`<tr><td colspan='8' class='error'>Expense load failed: ${error.message}</td></tr>`;return;}
   expenseRows=data||[];
   const today=todayISO();
   const month=today.slice(0,7);
@@ -138,14 +136,13 @@ async function loadExpenses(){
   body.innerHTML=filtered.length?filtered.map(r=>`<tr>
     <td>${r.expense_date||rowDate(r)}</td>
     <td>${r.category||""}</td>
-    <td>${r.description||""}</td>
     <td>${r.paid_to||""}</td>
     <td>${r.payment_mode||""}</td>
     <td>${money(r.amount||0)}</td>
     <td>${r.reference_no||""}</td>
     <td>${r.remarks||""}</td>
     <td>${currentUser?.role==="accountant"?`<button class="secondary" onclick="editExpense('${r.id}')">Edit</button> <button class="secondary" onclick="deleteExpense('${r.id}')">Delete</button>`:"View only"}</td>
-  </tr>`).join(""):"<tr><td colspan='9'>No expenses found for selected filter.</td></tr>";
+  </tr>`).join(""):"<tr><td colspan='8'>No expenses found for selected filter.</td></tr>";
 }
 
 function editExpense(id){
@@ -156,7 +153,6 @@ function editExpense(id){
   document.getElementById("expenseId").value=r.id;
   document.getElementById("expenseDate").value=r.expense_date||todayISO();
   document.getElementById("expenseCategory").value=r.category||EXPENSE_CATEGORIES[0];
-  document.getElementById("expenseDescription").value=r.description||"";
   document.getElementById("expenseAmount").value=Number(r.amount||0);
   document.getElementById("expensePaymentMode").value=r.payment_mode||"Cash";
   document.getElementById("expensePaidTo").value=r.paid_to||"";
@@ -170,7 +166,7 @@ function editExpense(id){
 async function deleteExpense(id){
   if(currentUser?.role!=="accountant"){alert("Only Accountant can delete expenses.");return;}
   const r=expenseRows.find(x=>String(x.id)===String(id));
-  if(!r||!confirm(`Delete expense of ${money(r.amount||0)} for ${r.description||r.category}?`))return;
+  if(!r||!confirm(`Delete ${r.category||"expense"} of ${money(r.amount||0)}?`))return;
   const {data,error}=await db.from("expenses").delete().eq("id",id).select();
   if(error){alert("Expense delete failed: "+error.message);return;}
   if(!data||!data.length){alert("Expense was not deleted. Check Supabase delete policy.");return;}
