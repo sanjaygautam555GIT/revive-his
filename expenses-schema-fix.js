@@ -6,8 +6,17 @@
     return match?match[1]:null;
   }
 
+  function appendExpenseMeta(remarks,label,value){
+    const base=String(remarks||"").trim();
+    const val=String(value||"").trim();
+    if(!val)return base||null;
+    const clean=base.replace(new RegExp(`(?:^|\\|)\\s*${label}:\\s*[^|]+`,`ig`),"").replace(/^\s*\|\s*|\s*\|\s*$/g,"").trim();
+    return [clean,`${label}: ${val}`].filter(Boolean).join(" | ");
+  }
+
   async function adaptiveExpenseWrite(mode,id,fullPayload){
     const payload={...fullPayload};
+    const original={...fullPayload};
     let attempts=0;
     while(attempts<10){
       attempts++;
@@ -17,6 +26,13 @@
       if(!result.error)return result;
       const missing=missingColumnFromError(result.error);
       if(!missing||!(missing in payload))return result;
+
+      if(missing==="paid_to"){
+        payload.remarks=appendExpenseMeta(payload.remarks,"Paid To",original.paid_to);
+      }
+      if(missing==="reference_no"){
+        payload.remarks=appendExpenseMeta(payload.remarks,"Reference",original.reference_no);
+      }
       delete payload[missing];
     }
     return {data:null,error:{message:"Expense schema compatibility retry limit reached."}};
