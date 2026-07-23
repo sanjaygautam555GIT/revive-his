@@ -27,7 +27,7 @@ async function openIPDBilling(){await loadScriptOnce("ipd-billing.js");return re
 async function openDiagnostics(){await loadScriptOnce("diagnostics.js");return renderDiagnostics()}
 async function openDoctorMaster(){await loadScriptOnce("doctor-master.js");return renderDoctorMaster()}
 async function openUserManagement(){await loadScriptOnce("user-management.js");return renderUserManagement()}
-async function openExpenses(){await loadScriptOnce("expenses.js");return renderExpenses()}
+async function openExpenses(){await loadScriptOnce("expenses.js");await loadScriptOnce("expenses-schema-fix.js");return renderExpenses()}
 async function appUsersLogin(username,code){
   try{
     const key=(username||"").trim().toLowerCase();
