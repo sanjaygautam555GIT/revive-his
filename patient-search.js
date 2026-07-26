@@ -1,18 +1,44 @@
+let patientSearchFilter="all";
+let patientSearchList=[];
+
 async function renderPatientSearch(){
   const el=document.getElementById("patientSearchView");
   el.innerHTML=`
-    <div class="panel">
-      <h2>Patient Master V2</h2>
-      <p>Search patient by UHID, name, or mobile. Click a patient to see profile, OPD history, pharmacy history, and financial summary.</p>
-      <div class="form-row"><div><label>Search UHID / Name / Mobile</label><input id="searchTerm" placeholder="Type patient name, mobile or UHID"></div><button id="searchBtn">Search</button></div>
-    </div>
-    <div class="grid" style="grid-template-columns:1.1fr .9fr;gap:16px">
-      <div class="panel table-wrap"><h3>Patient List</h3><table><thead><tr><th>UHID</th><th>Name</th><th>Age/Sex</th><th>Mobile</th><th>Last Visit</th><th>Visits</th></tr></thead><tbody id="searchRows"></tbody></table></div>
-      <div id="patientProfile" class="panel"><h3>Patient Profile</h3><p>Select a patient from the list.</p></div>
-    </div>
-  `;
+    <div class="hs-page">
+      <div class="hs-toolbar">
+        <div class="hs-search"><input id="searchTerm" aria-label="Search patients" placeholder="Search by UHID, patient name, mobile or address"></div>
+        <div class="hs-actions">
+          <button id="searchBtn" class="hs-btn hs-btn-primary">Search</button>
+          <button id="patientPrintBtn" class="hs-btn hs-btn-secondary">Print</button>
+          <button id="patientExportBtn" class="hs-btn hs-btn-secondary">Export</button>
+        </div>
+      </div>
+      <div class="hs-filterbar" aria-label="Patient filters">
+        <button class="hs-chip active" data-patient-filter="all">All Patients</button>
+        <button class="hs-chip" data-patient-filter="opd">OPD History</button>
+        <button class="hs-chip" data-patient-filter="ipd">IPD History</button>
+        <button class="hs-chip" data-patient-filter="pharmacy">Pharmacy History</button>
+      </div>
+      <div class="hs-layout">
+        <section class="hs-card">
+          <div class="hs-card-head"><h3 class="hs-card-title">Patient List</h3><span id="patientResultCount" class="hs-count">0 records</span></div>
+          <div class="hs-table-wrap">
+            <table class="hs-table"><thead><tr><th>UHID</th><th>Patient</th><th>Age / Sex</th><th>Mobile</th><th>Last Visit</th><th>Visits</th><th>Status</th></tr></thead><tbody id="searchRows"></tbody></table>
+          </div>
+        </section>
+        <aside id="patientProfile" class="hs-card hs-profile"><div class="hs-empty">Select a patient to view the complete profile.</div></aside>
+      </div>
+    </div>`;
   document.getElementById("searchBtn").onclick=searchPatients;
+  document.getElementById("searchTerm").oninput=()=>applyPatientSearch();
   document.getElementById("searchTerm").onkeydown=e=>{if(e.key==="Enter")searchPatients()};
+  document.getElementById("patientPrintBtn").onclick=()=>window.print();
+  document.getElementById("patientExportBtn").onclick=exportPatientSearch;
+  document.querySelectorAll("[data-patient-filter]").forEach(btn=>btn.onclick=()=>{
+    patientSearchFilter=btn.dataset.patientFilter;
+    document.querySelectorAll("[data-patient-filter]").forEach(x=>x.classList.toggle("active",x===btn));
+    applyPatientSearch();
+  });
   await searchPatients();
 }
 
@@ -25,74 +51,69 @@ function patientKey(p){return (p.uhid||p.patient_id||p.mobile||p.id||"").toStrin
 function patientName(p){return p.name||p.patient_name||""}
 function patientUHID(p){return p.uhid||p.patient_id||""}
 function patientSex(p){return p.sex||p.gender||""}
+function patientInitials(p){return patientName(p).split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join("").toUpperCase()||"PT"}
+function patientStatus(p){return (p.ipd||[]).length?"IPD":"Active"}
+function escCsv(value){const s=String(value??"");return /[",\n]/.test(s)?`"${s.replaceAll('"','""')}"`:s}
 
 async function searchPatients(){
-  const q=(document.getElementById("searchTerm")?.value||"").trim().toLowerCase();
   const body=document.getElementById("searchRows");
-  body.innerHTML="<tr><td colspan='6'>Loading patients...</td></tr>";
+  if(!body)return;
+  body.innerHTML="<tr><td colspan='7'><div class='hs-empty hs-loading'>Loading patient records...</div></td></tr>";
   try{
     const data=await collectPatientMasterData();
     const map={};
-    data.patients.forEach(p=>{
-      const key=patientKey(p);
-      if(!key)return;
-      if(!map[key])map[key]={...p,visits:[],pharmacy:[],ipd:[]};
-      map[key]={...map[key],...p};
-    });
-    data.opdVisits.forEach(v=>{
-      const key=(v.uhid||v.patient_id||v.mobile||"").toString();
-      if(!key)return;
-      if(!map[key])map[key]={uhid:v.uhid,patient_id:v.patient_id,name:v.patient_name,patient_name:v.patient_name,age:v.age,sex:v.sex,mobile:v.mobile,visits:[],pharmacy:[],ipd:[]};
-      map[key].visits.push(v);
-    });
-    data.sales.forEach(s=>{
-      const mobile=s.mobile||"";
-      let key=Object.keys(map).find(k=>(map[k].mobile||"")===mobile || patientName(map[k])===s.patient_name) || mobile || s.patient_name;
-      if(!key)return;
-      if(!map[key])map[key]={name:s.patient_name,patient_name:s.patient_name,mobile,visits:[],pharmacy:[],ipd:[]};
-      map[key].pharmacy.push(s);
-    });
-    data.ipd.forEach(x=>{
-      let key=Object.keys(map).find(k=>(map[k].mobile||"")===x.mobile || patientName(map[k])===x.patient_name) || x.mobile || x.patient_name;
-      if(!key)return;
-      if(!map[key])map[key]={name:x.patient_name,patient_name:x.patient_name,mobile:x.mobile,visits:[],pharmacy:[],ipd:[]};
-      map[key].ipd.push(x);
-    });
-    let list=Object.values(map);
-    if(q){list=list.filter(p=>[patientUHID(p),patientName(p),p.mobile,p.address].join(" ").toLowerCase().includes(q));}
-    list.sort((a,b)=>new Date(lastVisitDate(b)||0)-new Date(lastVisitDate(a)||0));
-    body.innerHTML=list.length?list.slice(0,100).map((p,i)=>`<tr onclick="openPatientProfile('${patientKey(p).replaceAll("'","\\'")}')"><td>${patientUHID(p)||"-"}</td><td>${patientName(p)||"-"}</td><td>${p.age||""}/${patientSex(p)||""}</td><td>${p.mobile||""}</td><td>${lastVisitDate(p)||""}</td><td>${(p.visits||[]).length}</td></tr>`).join(""):"<tr><td colspan='6'>No patient found.</td></tr>";
+    data.patients.forEach(p=>{const key=patientKey(p);if(!key)return;if(!map[key])map[key]={...p,visits:[],pharmacy:[],ipd:[]};map[key]={...map[key],...p}});
+    data.opdVisits.forEach(v=>{const key=(v.uhid||v.patient_id||v.mobile||"").toString();if(!key)return;if(!map[key])map[key]={uhid:v.uhid,patient_id:v.patient_id,name:v.patient_name,patient_name:v.patient_name,age:v.age,sex:v.sex,mobile:v.mobile,visits:[],pharmacy:[],ipd:[]};map[key].visits.push(v)});
+    data.sales.forEach(s=>{const mobile=s.mobile||"";const key=Object.keys(map).find(k=>(map[k].mobile||"")===mobile||patientName(map[k])===s.patient_name)||mobile||s.patient_name;if(!key)return;if(!map[key])map[key]={name:s.patient_name,patient_name:s.patient_name,mobile,visits:[],pharmacy:[],ipd:[]};map[key].pharmacy.push(s)});
+    data.ipd.forEach(x=>{const key=Object.keys(map).find(k=>(map[k].mobile||"")===x.mobile||patientName(map[k])===x.patient_name)||x.mobile||x.patient_name;if(!key)return;if(!map[key])map[key]={name:x.patient_name,patient_name:x.patient_name,mobile:x.mobile,visits:[],pharmacy:[],ipd:[]};map[key].ipd.push(x)});
+    patientSearchList=Object.values(map).sort((a,b)=>new Date(lastVisitDate(b)||0)-new Date(lastVisitDate(a)||0));
     window.__patientMasterMap=map;
-  }catch(e){body.innerHTML=`<tr><td colspan='6' class='error'>${e.message}</td></tr>`;}
+    applyPatientSearch();
+  }catch(e){body.innerHTML=`<tr><td colspan='7'><div class='hs-empty error'>${e.message}</div></td></tr>`}
+}
+
+function applyPatientSearch(){
+  const body=document.getElementById("searchRows");
+  if(!body)return;
+  const q=(document.getElementById("searchTerm")?.value||"").trim().toLowerCase();
+  let list=patientSearchList.filter(p=>!q||[patientUHID(p),patientName(p),p.mobile,p.address].join(" ").toLowerCase().includes(q));
+  if(patientSearchFilter==="opd")list=list.filter(p=>(p.visits||[]).length);
+  if(patientSearchFilter==="ipd")list=list.filter(p=>(p.ipd||[]).length);
+  if(patientSearchFilter==="pharmacy")list=list.filter(p=>(p.pharmacy||[]).length);
+  document.getElementById("patientResultCount").textContent=`${list.length} record${list.length===1?"":"s"}`;
+  body.innerHTML=list.length?list.slice(0,150).map(p=>{
+    const key=patientKey(p).replaceAll("'","\\'");
+    const status=patientStatus(p);
+    return `<tr data-patient-key="${key}" onclick="openPatientProfile('${key}')"><td><strong>${patientUHID(p)||"-"}</strong></td><td>${patientName(p)||"-"}</td><td>${p.age||"-"} / ${patientSex(p)||"-"}</td><td>${p.mobile||"-"}</td><td>${lastVisitDate(p)||"-"}</td><td>${(p.visits||[]).length}</td><td><span class="hs-status ${status==="IPD"?"ipd":"active"}">${status}</span></td></tr>`
+  }).join(""):"<tr><td colspan='7'><div class='hs-empty'>No patient records match the selected search and filter.</div></td></tr>";
+  window.__patientFilteredList=list;
+}
+
+function exportPatientSearch(){
+  const list=window.__patientFilteredList||[];
+  const rows=[["UHID","Patient Name","Age","Sex","Mobile","Address","Last Visit","OPD Visits","IPD Records","Pharmacy Bills"],...list.map(p=>[patientUHID(p),patientName(p),p.age||"",patientSex(p),p.mobile||"",p.address||"",lastVisitDate(p),(p.visits||[]).length,(p.ipd||[]).length,(p.pharmacy||[]).length])];
+  const csv=rows.map(r=>r.map(escCsv).join(",")).join("\n");
+  const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`patient-search-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);
 }
 
 function lastVisitDate(p){
-  const dates=[];
-  (p.visits||[]).forEach(v=>dates.push(v.visit_date||rowDate(v)));
-  (p.pharmacy||[]).forEach(s=>dates.push(s.bill_date||rowDate(s)));
-  (p.ipd||[]).forEach(i=>dates.push(rowDate(i)));
-  if(p.created_at)dates.push(rowDate(p));
-  return dates.filter(Boolean).sort().slice(-1)[0]||"";
+  const dates=[];(p.visits||[]).forEach(v=>dates.push(v.visit_date||rowDate(v)));(p.pharmacy||[]).forEach(s=>dates.push(s.bill_date||rowDate(s)));(p.ipd||[]).forEach(i=>dates.push(rowDate(i)));if(p.created_at)dates.push(rowDate(p));return dates.filter(Boolean).sort().slice(-1)[0]||"";
 }
 
 function openPatientProfile(key){
   const p=window.__patientMasterMap?.[key];
   const el=document.getElementById("patientProfile");
-  if(!p){el.innerHTML="<h3>Patient Profile</h3><p class='error'>Patient not found.</p>";return;}
+  document.querySelectorAll("#searchRows tr").forEach(row=>row.classList.toggle("selected",row.dataset.patientKey===key));
+  if(!p){el.innerHTML="<div class='hs-empty error'>Patient not found.</div>";return}
   const opdRevenue=(p.visits||[]).reduce((s,v)=>s+safeNumber(v.amount),0);
   const pharmacyRevenue=(p.pharmacy||[]).reduce((s,v)=>s+safeNumber(v.amount_paid||v.bill_amount),0);
   const ipdRevenue=(p.ipd||[]).reduce((s,v)=>s+safeNumber(v.advance||v.total),0);
   const total=opdRevenue+pharmacyRevenue+ipdRevenue;
+  const visits=(p.visits||[]).slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,8);
   el.innerHTML=`
-    <h3>${patientName(p)||"Patient"}</h3>
-    <p><b>UHID:</b> ${patientUHID(p)||"-"}<br><b>Age/Sex:</b> ${p.age||""} / ${patientSex(p)||""}<br><b>Mobile:</b> ${p.mobile||""}<br><b>Address:</b> ${p.address||""}</p>
-    <div class="grid cards" style="grid-template-columns:repeat(2,1fr)">
-      <div class="card"><span>Total Revenue</span><strong>${money(total)}</strong></div>
-      <div class="card"><span>OPD Visits</span><strong>${(p.visits||[]).length}</strong></div>
-      <div class="card"><span>OPD Revenue</span><strong>${money(opdRevenue)}</strong></div>
-      <div class="card"><span>Pharmacy Revenue</span><strong>${money(pharmacyRevenue)}</strong></div>
-    </div>
-    <div class="table-wrap"><h3>OPD Visit History</h3><table><thead><tr><th>Date</th><th>Visit ID</th><th>Department</th><th>Doctor</th><th>Amount</th></tr></thead><tbody>${(p.visits||[]).length?(p.visits||[]).slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(v=>`<tr><td>${v.visit_date||rowDate(v)}</td><td>${v.visit_id||""}</td><td>${v.department||""}</td><td>${v.consultant||""}</td><td>${money(v.amount||0)}</td></tr>`).join(""):"<tr><td colspan='5'>No OPD visits.</td></tr>"}</tbody></table></div>
-    <div class="table-wrap"><h3>Pharmacy History</h3><table><thead><tr><th>Date</th><th>Patient Type</th><th>Amount</th></tr></thead><tbody>${(p.pharmacy||[]).length?(p.pharmacy||[]).slice().sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).map(s=>`<tr><td>${s.bill_date||rowDate(s)}</td><td>${s.patient_type||""}</td><td>${money(s.amount_paid||s.bill_amount||0)}</td></tr>`).join(""):"<tr><td colspan='3'>No pharmacy bills.</td></tr>"}</tbody></table></div>
-  `;
+    <div class="hs-profile-hero"><div class="hs-avatar">${patientInitials(p)}</div><h3 class="hs-profile-name">${patientName(p)||"Patient"}</h3><p class="hs-profile-meta"><strong>UHID:</strong> ${patientUHID(p)||"-"}<br>${p.age||"-"} years · ${patientSex(p)||"-"}<br>${p.mobile||"No mobile number"}<br>${p.address||"No address recorded"}</p></div>
+    <div class="hs-metrics"><div class="hs-metric"><span>Total Revenue</span><strong>${money(total)}</strong></div><div class="hs-metric"><span>OPD Visits</span><strong>${(p.visits||[]).length}</strong></div><div class="hs-metric"><span>IPD Records</span><strong>${(p.ipd||[]).length}</strong></div><div class="hs-metric"><span>Pharmacy Bills</span><strong>${(p.pharmacy||[]).length}</strong></div></div>
+    <div class="hs-section"><h4>Recent OPD Visits</h4><table class="hs-mini-table"><thead><tr><th>Date</th><th>Doctor</th><th>Amount</th></tr></thead><tbody>${visits.length?visits.map(v=>`<tr><td>${v.visit_date||rowDate(v)||"-"}</td><td>${v.consultant||"-"}</td><td>${money(v.amount||0)}</td></tr>`).join(""):"<tr><td colspan='3'>No OPD visits.</td></tr>"}</tbody></table></div>
+    <div class="hs-section"><h4>Financial Summary</h4><table class="hs-mini-table"><tbody><tr><th>OPD</th><td>${money(opdRevenue)}</td></tr><tr><th>IPD</th><td>${money(ipdRevenue)}</td></tr><tr><th>Pharmacy</th><td>${money(pharmacyRevenue)}</td></tr></tbody></table></div>`;
 }
