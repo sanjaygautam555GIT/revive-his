@@ -1,0 +1,12 @@
+/* Clean module layout: page title only, no repeated taglines or intro copy. */
+#pageSubtitle{display:none!important}
+.brand-block small{display:none!important}
+.topbar>div:first-child{display:flex;align-items:center;min-height:44px}
+.topbar h1{margin:0!important}
+.view>.panel.hs-intro-only{display:none!important}
+.view>.panel.hs-clean-first>h1:first-child,
+.view>.panel.hs-clean-first>h2:first-child,
+.view>.panel.hs-clean-first>h3:first-child,
+.view>.panel.hs-clean-first>p.hs-intro-copy{display:none!important}
+.view>.panel.hs-clean-first{padding-top:22px}
+@media(max-width:700px){.topbar>div:first-child{min-height:36px}.topbar h1{font-size:24px!important}}
