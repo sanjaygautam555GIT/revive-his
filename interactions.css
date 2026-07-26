@@ -1,0 +1,21 @@
+/* Lightweight interaction animations for Revive HealthScope. */
+:root{--hs-motion-fast:140ms;--hs-motion-normal:220ms;--hs-ease:cubic-bezier(.2,.8,.2,1)}
+button,.sidebar button,.card,.panel,.modern-kpi,.dashboard-alert-card,input,select,textarea,table tbody tr{transition:transform var(--hs-motion-fast) var(--hs-ease),box-shadow var(--hs-motion-normal) var(--hs-ease),border-color var(--hs-motion-fast) ease,background-color var(--hs-motion-fast) ease,opacity var(--hs-motion-fast) ease}
+button:not(:disabled):active,.sidebar button:not(:disabled):active{transform:scale(.97)}
+button:not(:disabled):hover{box-shadow:0 7px 18px rgba(15,23,42,.12)}
+.card:hover,.panel:hover,.modern-kpi:hover,.dashboard-alert-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(15,23,42,.08)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#08a6a0;box-shadow:0 0 0 3px rgba(8,166,160,.13)}
+table tbody tr:hover{background:#f7fbfc!important}
+.view:not(.hidden){animation:hsPageIn .22s var(--hs-ease) both}
+.login-card{animation:hsLoginIn .36s var(--hs-ease) both}
+.panel,.card,.modern-kpi,.dashboard-alert-card{animation:hsCardIn .24s var(--hs-ease) both}
+.hs-ripple{position:relative;overflow:hidden}
+.hs-ripple-dot{position:absolute;border-radius:50%;pointer-events:none;background:rgba(255,255,255,.34);transform:scale(0);animation:hsRipple .46s ease-out forwards}
+.secondary .hs-ripple-dot{background:rgba(8,166,160,.18)}
+.hs-click-pulse{animation:hsPulse .18s var(--hs-ease)}
+@keyframes hsPageIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes hsLoginIn{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes hsCardIn{from{opacity:.65;transform:translateY(5px)}to{opacity:1;transform:none}}
+@keyframes hsPulse{0%{transform:scale(1)}50%{transform:scale(.975)}100%{transform:scale(1)}}
+@keyframes hsRipple{to{transform:scale(3.2);opacity:0}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
