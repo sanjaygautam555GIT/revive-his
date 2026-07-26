@@ -1,44 +1,37 @@
-// Revive HealthScope branding layer.
+// Safe Revive HealthScope branding layer.
+// Runs once after the DOM is ready and never observes or rewrites app mutations.
 (function(){
-  const replacements=[
-    [/Revive Hospital HIS v2\.0/gi,"Revive HealthScope"],
-    [/Revive HIS/gi,"Revive HealthScope"],
-    [/Hospital Information System v2\.0/gi,"Smart Healthcare Management Platform"]
-  ];
+  "use strict";
 
-  function applyBranding(root=document){
-    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
-    const nodes=[];
-    while(walker.nextNode())nodes.push(walker.currentNode);
-    nodes.forEach(node=>{
-      if(["SCRIPT","STYLE","TEXTAREA"].includes(node.parentElement?.tagName))return;
-      let value=node.nodeValue;
-      replacements.forEach(([pattern,replacement])=>{value=value.replace(pattern,replacement);});
-      if(value!==node.nodeValue)node.nodeValue=value;
-    });
-
-    document.title="Revive HealthScope";
+  function setText(selector,text){
+    const element=document.querySelector(selector);
+    if(element)element.textContent=text;
   }
 
-  function addBrandFooter(){
-    const loginCard=document.querySelector(".login-card");
-    if(loginCard&&!document.getElementById("healthScopeFooter")){
-      const footer=document.createElement("p");
-      footer.id="healthScopeFooter";
-      footer.className="brand-footer";
-      footer.textContent=`© ${new Date().getFullYear()} Revive HealthScope`;
-      loginCard.appendChild(footer);
+  function applyBranding(){
+    try{
+      document.title="Revive HealthScope";
+      setText("#loginPage .login-card h1","Revive HealthScope");
+      setText("#loginPage .login-card > p","Smart Healthcare Management Platform");
+      setText(".sidebar h2","Revive HealthScope");
+
+      const loginCard=document.querySelector(".login-card");
+      if(loginCard&&!document.getElementById("healthScopeFooter")){
+        const footer=document.createElement("p");
+        footer.id="healthScopeFooter";
+        footer.className="brand-footer";
+        footer.textContent=`© ${new Date().getFullYear()} Revive HealthScope`;
+        loginCard.appendChild(footer);
+      }
+    }catch(error){
+      // Branding must never stop authentication or application loading.
+      console.warn("Branding could not be applied:",error);
     }
   }
 
-  function refresh(){
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",applyBranding,{once:true});
+  }else{
     applyBranding();
-    addBrandFooter();
   }
-
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",refresh);
-  else refresh();
-
-  const observer=new MutationObserver(()=>refresh());
-  observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
