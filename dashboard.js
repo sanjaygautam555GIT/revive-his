@@ -8,7 +8,7 @@ async function loadDashboard(){
     const today=todayISO();
     const monthStart=today.slice(0,7)+"-01";
     const now=new Date();
-    const in30=new Date();in30.setDate(in30.getDate()+30);
+    const in90=new Date();in90.setDate(in90.getDate()+90);
     const opdToday=filterByDate(opdVisits,"visit_date",today,today);
     const opdMonth=filterByDate(opdVisits,"visit_date",monthStart,today);
     const ipdFinalToday=filterByDate(ipdBills,"billing_date",today,today);
@@ -41,47 +41,43 @@ async function loadDashboard(){
     monthly.netAfterExpense=monthly.totalRevenue-monthly.expense;
     monthly.totalCollection=monthly.cash+monthly.upi+monthly.bank;
     const stockRows=(stock||[]).filter(r=>safeNumber(r.quantity)>0);
-    const stockValue=stockValuation(stock).purchaseValue;
-    const stockSaleValue=stockRows.reduce((s,r)=>s+safeNumber(r.sale_price)*safeNumber(r.quantity),0);
-    const totalStockQty=stockRows.reduce((s,r)=>s+safeNumber(r.quantity),0);
     const lowStock=stockRows.filter(r=>safeNumber(r.quantity)<=10);
-    const expiringSoon=stockRows.filter(r=>r.expiry_date&&new Date(r.expiry_date)>=now&&new Date(r.expiry_date)<=in30);
+    const expiringSoon=stockRows.filter(r=>r.expiry_date&&new Date(r.expiry_date)>=now&&new Date(r.expiry_date)<=in90);
     const expired=stockRows.filter(r=>r.expiry_date&&new Date(r.expiry_date)<now);
-    const nearExpiryValue=expiringSoon.reduce((s,r)=>s+safeNumber(r.purchase_price)*safeNumber(r.quantity),0);
-    const expiredValue=expired.reduce((s,r)=>s+safeNumber(r.purchase_price)*safeNumber(r.quantity),0);
     const trend=lastNDaysSimple({opdVisits,ipdBills,diagnosticBills,pharmacySales,expenses},7,today);
+    const occupiedBeds=activeIpd.length;
+    const totalBeds=Math.max(20,occupiedBeds);
+    const availableBeds=Math.max(0,totalBeds-occupiedBeds);
     el.innerHTML=`
-      <div class="dash-head"><div><h2>Revive Hospital Dashboard</h2><p>Daily and monthly overview · ${new Date().toLocaleDateString()} · Updated ${new Date().toLocaleTimeString()}</p></div></div>
-      <div class="panel"><h2>Daily Data</h2><p>Today's revenue, collection, expenses and patient activity.</p></div>
-      <div class="dashboard-secondary-grid">
-        ${summaryTable("Revenue Today",[["OPD",money(daily.opdRevenue)],["IPD Final Bills",money(daily.ipdRevenue)],["Diagnostics",money(daily.diagRevenue)],["Pharmacy",money(daily.pharmRevenue)],["Total Revenue",money(daily.totalRevenue)]])}
-        ${summaryTable("Collection Today",[["Cash",money(daily.cash)],["UPI",money(daily.upi)],["Bank",money(daily.bank)],["IPD Advance Included",money(daily.ipdAdvance)],["Total Collection",money(daily.totalCollection)]])}
-        ${summaryTable("Expense Today",[["Expense Entries",expToday.length],["Total Expense",money(daily.expense)],["Revenue - Expense",money(daily.netAfterExpense)]])}
-        ${summaryTable("Activity Today",[["OPD Patients",daily.opdCount],["New IPD Admissions",daily.ipdNew],["Active IPD Patients",daily.ipdActive],["Diagnostics Bills",daily.diagCount],["Pharmacy Bills",daily.pharmCount],["Discharges",daily.discharged]])}
+      <div class="dashboard-kpis">
+        ${modernKpi("Today's OPD",daily.opdCount,"Patients","👥","green")}
+        ${modernKpi("Today's IPD",daily.ipdNew,"Admissions","🛏","blue")}
+        ${modernKpi("Occupied Beds",occupiedBeds,"Beds","🛌","purple")}
+        ${modernKpi("Available Beds",availableBeds,"Beds","🏥","green")}
+        ${modernKpi("Revenue Today",money(daily.totalRevenue),"Total","₹","amber")}
+        ${modernKpi("Cash Collection",money(daily.totalCollection),"Today","💳","teal")}
+        ${modernKpi("Pharmacy Sales",money(daily.pharmRevenue),"Today","🛒","blue")}
+        ${modernKpi("Expenses Today",money(daily.expense),"Total","₹","orange")}
       </div>
-      <div class="panel"><h2>Monthly Data</h2><p>Current month performance from ${monthStart} to ${today}.</p></div>
-      <div class="dashboard-secondary-grid">
-        ${summaryTable("Revenue This Month",[["OPD",money(monthly.opdRevenue)],["IPD Final Bills",money(monthly.ipdRevenue)],["Diagnostics",money(monthly.diagRevenue)],["Pharmacy",money(monthly.pharmRevenue)],["Total Revenue",money(monthly.totalRevenue)]])}
-        ${summaryTable("Collection This Month",[["Cash",money(monthly.cash)],["UPI",money(monthly.upi)],["Bank",money(monthly.bank)],["IPD Advance Included",money(monthly.ipdAdvance)],["Total Collection",money(monthly.totalCollection)]])}
-        ${summaryTable("Expense This Month",[["Expense Entries",expMonth.length],["Total Expense",money(monthly.expense)],["Revenue - Expense",money(monthly.netAfterExpense)]])}
-        ${summaryTable("Monthly Statistics",[["Total OPD",monthly.opdCount],["Total Admissions",monthly.admissions],["Active IPD",activeIpd.length],["Total Discharges",monthly.discharges],["Diagnostics Bills",monthly.diagCount],["Pharmacy Bills",monthly.pharmCount]])}
+      <div class="dashboard-alert-grid">
+        <div class="dashboard-alert-card warning" onclick="navigate('pharmacyStock')"><div class="alert-symbol">⚠</div><div><span>Low Stock Items</span><strong>${lowStock.length}</strong><small>View details →</small></div></div>
+        <div class="dashboard-alert-card expiry" onclick="navigate('pharmacyStock')"><div class="alert-symbol">◷</div><div><span>Near Expiry Items</span><strong>${expiringSoon.length}</strong><small>Within 90 days →</small></div></div>
       </div>
-      <div class="panel"><h2>Pharmacy Stock</h2><p>Inventory status only. Sales are shown under revenue sections.</p></div>
-      <div class="kpi-grid compact">
-        ${kpiCard("Purchase Stock Value",money(stockValue),`${stockRows.length} active stock rows`,"analytics")}
-        ${kpiCard("Sale Stock Value",money(stockSaleValue),"value at sale price","analytics")}
-        ${kpiCard("Total Stock Quantity",totalStockQty,"units in stock","info")}
-        ${kpiCard("Low Stock",lowStock.length,"Qty ≤ 10",lowStock.length?"warning":"success")}
-        ${kpiCard("Expiring Soon",expiringSoon.length,`${money(nearExpiryValue)} within 30 days`,expiringSoon.length?"warning":"success")}
-        ${kpiCard("Expired Stock",expired.length,`${money(expiredValue)} needs removal`,expired.length?"danger":"success")}
+      <div class="dashboard-chart-grid">
+        <div class="panel dashboard-chart-panel"><div class="panel-title-row"><h3>Revenue Trend</h3><span>Last 7 days</span></div>${miniBarChart(trend.map(r=>r.revenue),trend.map(r=>r.day.slice(5)),"Revenue")}</div>
+        <div class="panel dashboard-chart-panel"><div class="panel-title-row"><h3>Monthly Overview</h3><span>${today.slice(0,7)}</span></div>
+          <div class="overview-list">
+            <div><span>OPD Revenue</span><strong>${money(monthly.opdRevenue)}</strong></div>
+            <div><span>IPD Revenue</span><strong>${money(monthly.ipdRevenue)}</strong></div>
+            <div><span>Diagnostics</span><strong>${money(monthly.diagRevenue)}</strong></div>
+            <div><span>Pharmacy</span><strong>${money(monthly.pharmRevenue)}</strong></div>
+          </div>
+        </div>
       </div>
-      <div class="dashboard-main-grid">
-        <div class="panel"><h3>Revenue Trend – Last 7 Days</h3>${miniBarChart(trend.map(r=>r.revenue),trend.map(r=>r.day.slice(5)),"Revenue")}</div>
-        <div class="panel"><h3>Expense Trend – Last 7 Days</h3>${miniBarChart(trend.map(r=>r.expense),trend.map(r=>r.day.slice(5)),"Expense")}</div>
-      </div>
-      <div class="panel table-wrap"><h3>Important Alerts</h3><table><tbody>
-        ${alertRow(expiringSoon.length?"warning":"good",`${expiringSoon.length} medicines expiring within 30 days`,expiringSoon.slice(0,2).map(r=>r.medicine_name).join(", ")||"-")}
-        ${alertRow(lowStock.length?"warning":"good",`${lowStock.length} low stock medicines`,lowStock.slice(0,2).map(r=>r.medicine_name).join(", ")||"-")}
+      <div class="panel table-wrap recent-activity-panel"><div class="panel-title-row"><h3>Important Alerts</h3><span>Live hospital status</span></div><table><thead><tr><th>Status</th><th>Module</th><th>Details</th></tr></thead><tbody>
+        ${alertRow(expired.length?"critical":"good",expired.length?`${expired.length} expired medicines`:"No expired medicines",expired.slice(0,2).map(r=>r.medicine_name).join(", ")||"Stock clear")}
+        ${alertRow(expiringSoon.length?"warning":"good",`${expiringSoon.length} near-expiry medicines`,expiringSoon.slice(0,2).map(r=>r.medicine_name).join(", ")||"No near-expiry stock")}
+        ${alertRow(lowStock.length?"warning":"good",`${lowStock.length} low-stock medicines`,lowStock.slice(0,2).map(r=>r.medicine_name).join(", ")||"Stock levels normal")}
         ${alertRow(activeIpd.length?"info":"good",`${activeIpd.length} active IPD patients`,"Current inpatient load")}
       </tbody></table></div>`;
   }catch(e){el.innerHTML=`<div class='panel error'>Dashboard error: ${e.message}</div>`;}
@@ -91,6 +87,7 @@ function filterByDate(rows,field,from,to){return (rows||[]).filter(r=>dateInRang
 function paymentOfRows(rows,field,mode){return rows.filter(r=>String(r.payment_mode||"").toLowerCase().includes(mode)).reduce((s,r)=>s+safeNumber(r[field]),0)}
 function collectionByMode(set,mode){return paymentOfRows(set.opd,"amount",mode)+paymentOfRows(set.diag,"total_amount",mode)+paymentOfRows(set.pharm,"amount_paid",mode)+set.adm.filter(r=>String(r.payment_mode||"").toLowerCase().includes(mode)).reduce((s,r)=>s+depositAmount(r),0)}
 function lastNDaysSimple(all,n,today){const arr=[];const end=new Date(today);for(let i=n-1;i>=0;i--){const d=new Date(end);d.setDate(d.getDate()-i);const iso=d.toISOString().slice(0,10);const opd=filterByDate(all.opdVisits,"visit_date",iso,iso);const ipd=filterByDate(all.ipdBills,"billing_date",iso,iso);const diag=filterByDate(all.diagnosticBills,"billing_date",iso,iso);const pharm=filterByDate(all.pharmacySales,"bill_date",iso,iso);const exp=filterByDate(all.expenses,"expense_date",iso,iso);const revenue=sumField(opd,"amount")+sumField(ipd,"total")+sumField(diag,"total_amount")+sumField(pharm,"bill_amount");const expense=sumField(exp,"amount");const collection=sumField(opd,"amount")+sumField(diag,"total_amount")+sumField(pharm,"amount_paid");arr.push({day:iso,revenue,expense,collection});}return arr;}
+function modernKpi(title,value,sub,icon,type){return `<div class="modern-kpi ${type}"><div class="modern-kpi-icon">${icon}</div><div><span>${title}</span><strong>${value}</strong><small>${sub}</small></div></div>`}
 function kpiCard(title,value,sub,type){return `<div class="kpi-card ${type||"info"}"><span>${title}</span><strong>${value}</strong><p>${sub||""}</p></div>`}
 function alertIcon(type){return type==="critical"?"🔴":type==="warning"?"🟠":type==="info"?"🔵":"🟢"}
 function alertRow(type,text,value){return `<tr><td>${alertIcon(type)}</td><td>${text}</td><td>${value}</td></tr>`}
