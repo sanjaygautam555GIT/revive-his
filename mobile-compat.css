@@ -1,0 +1,92 @@
+/* Mobile compatibility layer for Revive HealthScope */
+html,body{max-width:100%;overflow-x:hidden}
+img,svg,canvas{max-width:100%;height:auto}
+button,input,select,textarea{max-width:100%}
+.table-wrap,.hs-table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{min-width:max-content}
+
+@media(max-width:900px){
+  .main{padding:0 12px 18px!important}
+  .topbar{position:sticky;top:0;z-index:35;min-height:64px!important;padding:10px 12px!important}
+  .topbar h1{font-size:22px!important;line-height:1.15}
+  .topbar-tools{gap:8px!important}
+  .view{padding-top:12px!important}
+  .panel,.hs-card{border-radius:12px!important}
+  .grid,.form-row{grid-template-columns:1fr!important}
+  form .grid{grid-template-columns:1fr!important}
+  .cards,.kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .hs-layout{grid-template-columns:1fr!important}
+  .hs-profile{position:static!important;max-height:none!important}
+  .hs-toolbar{align-items:stretch!important}
+  .hs-search{flex-basis:100%!important;min-width:0!important}
+  .hs-actions{width:100%!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .hs-actions .hs-btn{width:100%!important;padding:0 10px!important}
+  .hs-filterbar{padding-bottom:4px!important}
+  .hs-chip{min-height:44px!important}
+  .hs-table-wrap{max-height:none!important}
+  .hs-table{min-width:760px!important}
+  .hs-profile-head{align-items:flex-start!important}
+  .hs-info-grid{grid-template-columns:1fr 1fr!important}
+  .hs-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .hs-section{overflow-x:auto!important}
+  .hs-mini-table{min-width:520px!important}
+}
+
+@media(max-width:640px){
+  :root{--shell-topbar:60px}
+  body{font-size:14px}
+  .main{padding-left:8px!important;padding-right:8px!important}
+  .topbar{margin-left:-8px!important;margin-right:-8px!important;padding-left:8px!important;padding-right:8px!important}
+  .topbar h1{font-size:19px!important}
+  #logoutBtn{min-width:42px!important;padding:0 10px!important;font-size:0!important}
+  #logoutBtn:after{content:'↪';font-size:20px}
+  .shell-menu-btn{width:38px!important;height:38px!important}
+  .panel,.hs-card{border-radius:10px!important}
+  .panel{padding:12px!important}
+  .cards,.kpi-grid{grid-template-columns:1fr!important}
+  .hs-page{gap:10px!important}
+  .hs-toolbar{padding:10px!important;gap:10px!important}
+  .hs-search input{height:46px!important;font-size:16px!important}
+  .hs-actions{grid-template-columns:1fr 1fr!important}
+  .hs-actions .hs-btn:first-child{grid-column:1/-1}
+  .hs-btn{min-height:44px!important}
+  .hs-filterbar{gap:8px!important}
+  .hs-chip{padding:10px 14px!important;font-size:13px!important}
+  .hs-card-head{padding:13px 14px!important}
+  .hs-card-title{font-size:16px!important}
+  .hs-table{min-width:680px!important;font-size:13px!important}
+  .hs-table th,.hs-table td{padding:11px 10px!important}
+  .hs-pagination{padding:10px!important;align-items:flex-start!important;flex-direction:column!important}
+  .hs-page-controls{max-width:100%;overflow-x:auto;padding-bottom:2px}
+  .hs-page-size{width:100%!important}
+  .hs-profile-head{padding:14px 14px 8px!important;gap:10px!important}
+  .hs-avatar{width:46px!important;height:46px!important;font-size:16px!important}
+  .hs-profile-head-main h3{font-size:19px!important}
+  .hs-info-card,.hs-section{margin-left:12px!important;margin-right:12px!important}
+  .hs-info-grid{grid-template-columns:1fr!important}
+  .hs-info-item{border-right:0!important}
+  .hs-metrics{padding-left:12px!important;padding-right:12px!important;grid-template-columns:1fr 1fr!important}
+  .hs-metric{padding:9px!important}
+  .hs-metric strong{font-size:14px!important}
+  .login-page{padding:16px!important}
+  .login-card{width:100%!important;max-width:420px!important;padding:22px!important}
+  .sidebar{width:min(88vw,300px)!important}
+  .sidebar nav button{min-height:48px!important}
+  input,select,textarea{font-size:16px!important}
+}
+
+@media(max-width:380px){
+  .main{padding-left:6px!important;padding-right:6px!important}
+  .topbar{margin-left:-6px!important;margin-right:-6px!important}
+  .topbar h1{font-size:17px!important}
+  .hs-actions{grid-template-columns:1fr!important}
+  .hs-actions .hs-btn:first-child{grid-column:auto}
+  .hs-metrics{grid-template-columns:1fr!important}
+  .hs-filterbar{margin-right:-6px;padding-right:6px!important}
+  .hs-chip{padding:9px 12px!important}
+  .hs-profile-head-main p{font-size:12px!important}
+}
+
+@media(hover:none){
+  button,.hs-btn,.hs-chip,.sidebar nav button{min-height:44px}
+}
