@@ -9,6 +9,26 @@
     return icons[key]||"•";
   }
 
+  function currentDisplayName(){
+    return String(currentUser?.name||currentUser?.display_name||currentUser?.username||"User").trim()||"User";
+  }
+
+  function currentRoleLabel(){
+    return ROLE_LABELS?.[currentUser?.role]||document.getElementById("roleBadge")?.textContent||"";
+  }
+
+  function refreshUserChip(){
+    const chip=document.querySelector("#topbarTools .user-chip");
+    if(!chip)return;
+    const name=currentDisplayName();
+    const avatar=chip.querySelector(".user-avatar");
+    const nameEl=chip.querySelector("strong");
+    const roleEl=chip.querySelector("small");
+    if(avatar)avatar.textContent=name.charAt(0).toUpperCase();
+    if(nameEl)nameEl.textContent=name;
+    if(roleEl)roleEl.textContent=currentRoleLabel();
+  }
+
   function enhanceShell(){
     const sidebar=document.querySelector(".sidebar");
     const title=sidebar?.querySelector("h2");
@@ -26,10 +46,12 @@
       const tools=document.createElement("div");
       tools.id="topbarTools";
       tools.className="topbar-tools";
-      tools.innerHTML=`<div class="live-clock"><strong id="healthScopeTime"></strong><span id="healthScopeDate"></span></div><div class="user-chip"><span class="user-avatar">${String(currentUser?.name||currentUser?.username||"U").trim().charAt(0).toUpperCase()}</span><div><strong>${currentUser?.name||currentUser?.username||"User"}</strong><small>${document.getElementById("roleBadge")?.textContent||""}</small></div></div>`;
+      tools.innerHTML=`<div class="live-clock"><strong id="healthScopeTime"></strong><span id="healthScopeDate"></span></div><div class="user-chip"><span class="user-avatar">U</span><div><strong>User</strong><small></small></div></div>`;
       topbar.insertBefore(tools,logout);
       logout.textContent="Sign out";
     }
+
+    refreshUserChip();
 
     document.querySelectorAll("#mainNav button").forEach(button=>{
       if(button.dataset.enhanced)return;
@@ -53,8 +75,10 @@
   }
   const originalShowApp=window.showApp;
   if(typeof originalShowApp==="function"){
-    window.showApp=function(){originalShowApp();enhanceShell();updateClock();};
+    window.showApp=function(){originalShowApp();enhanceShell();refreshUserChip();updateClock();};
   }
+
+  window.refreshHealthScopeUserChip=refreshUserChip;
 
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>{enhanceShell();updateClock();});
   else {enhanceShell();updateClock();}
