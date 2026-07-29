@@ -1,9 +1,21 @@
+async function dashboardFetch(table,timeoutMs=8000){
+  try{
+    return await Promise.race([
+      fetchAll(table),
+      new Promise((_,reject)=>setTimeout(()=>reject(new Error(`${table} request timed out`)),timeoutMs))
+    ]);
+  }catch(error){
+    console.warn(`Dashboard data unavailable: ${table}`,error);
+    return [];
+  }
+}
+
 async function loadDashboard(){
   const el=document.getElementById("dashboardView");
   el.innerHTML="<div class='panel'>Loading dashboard...</div>";
   try{
     const [patients,opdVisits,admissions,ipdBills,diagnosticBills,stock,pharmacySales,purchases,expenses]=await Promise.all([
-      fetchAll("patient"),fetchAll("opd_visits"),fetchAll("ipd_admission"),fetchAll("ipd_billing"),fetchAll("diagnostic_bills"),fetchAll("pharmacy_stock"),fetchAll("pharmacy_sales"),fetchAll("pharmacy_purchases"),fetchAll("expenses")
+      dashboardFetch("patient"),dashboardFetch("opd_visits"),dashboardFetch("ipd_admission"),dashboardFetch("ipd_billing"),dashboardFetch("diagnostic_bills"),dashboardFetch("pharmacy_stock"),dashboardFetch("pharmacy_sales"),dashboardFetch("pharmacy_purchases"),dashboardFetch("expenses")
     ]);
     const today=todayISO();
     const monthStart=today.slice(0,7)+"-01";
