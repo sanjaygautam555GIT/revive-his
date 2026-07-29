@@ -1,0 +1,10 @@
+.hs-icon{width:20px;height:20px;display:block;flex:0 0 auto;color:currentColor}
+.nav-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:rgba(255,255,255,.10);color:#e5f8f6;flex:0 0 40px}
+#mainNav button.active .nav-icon{background:rgba(255,255,255,.20);color:#fff}
+#mainNav button:hover .nav-icon{background:rgba(255,255,255,.16)}
+.hs-action-icon{width:17px;height:17px;margin-right:7px}
+button[data-icon-enhanced="true"],a[data-icon-enhanced="true"]{display:inline-flex;align-items:center;justify-content:center}
+#logoutBtn .hs-action-icon{width:18px;height:18px}
+.hs-profile-close .hs-action-icon,.hs-toast-close .hs-action-icon{margin:0;width:18px;height:18px}
+@media(max-width:600px){.nav-icon{width:38px;height:38px;flex-basis:38px}.hs-action-icon{width:18px;height:18px}}
+@media(prefers-reduced-motion:no-preference){.nav-icon,.hs-action-icon{transition:transform .16s ease,color .16s ease,background .16s ease}button:hover>.hs-action-icon,a:hover>.hs-action-icon{transform:translateY(-1px)}}
