@@ -50,7 +50,7 @@
     return new Promise(resolve=>{
       const wrap=document.createElement('div');
       wrap.className='hs-confirm-backdrop';
-      wrap.innerHTML=`<div class="hs-confirm" role="dialog" aria-modal="true"><h3>${options.title||'Confirm deletion'}</h3><p></p><div class="hs-confirm-actions"><button class="hs-confirm-cancel">Cancel</button><button class="hs-confirm-danger">${options.confirmText||'Delete'}</button></div></div>`;
+      wrap.innerHTML=`<div class="hs-confirm" role="dialog" aria-modal="true"><h3>${options.title||'Confirm deletion'}</h3><p></p><div class="hs-confirm-actions"><button class="hs-confirm-cancel" data-no-confirm="true">Cancel</button><button class="hs-confirm-danger" data-no-confirm="true">${options.confirmText||'Delete'}</button></div></div>`;
       wrap.querySelector('p').textContent=message||'This action cannot be undone.';
       const done=value=>{wrap.remove();resolve(value)};
       wrap.querySelector('.hs-confirm-cancel').onclick=()=>done(false);
@@ -72,8 +72,9 @@
   document.addEventListener('click',async e=>{
     const button=e.target.closest('button,a');
     if(!button)return;
+    if(button.closest('.hs-confirm-backdrop')||button.dataset.noConfirm==='true')return;
     const text=(button.textContent||button.getAttribute('aria-label')||'').trim();
-    if(!/delete|remove/i.test(text)||button.dataset.noConfirm==='true')return;
+    if(!/delete|remove/i.test(text))return;
     if(deleteBypass.has(button)){deleteBypass.delete(button);return;}
     e.preventDefault();
     e.stopImmediatePropagation();
