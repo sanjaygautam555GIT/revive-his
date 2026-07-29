@@ -1,10 +1,10 @@
+function userRoleLabel(role){return ({owner:"Hospital Admin",staff:"Hospital Staff",pharmacyOwner:"Pharmacy Admin",pharmacy:"Pharmacy Staff",accountant:"Accountant"})[role]||role||""}
 async function renderUserManagement(){
-  if(currentUser?.role!=="owner"){document.getElementById("userManagementView").innerHTML="<div class='panel'><p class='error'>Owner access only.</p></div>";return;}
+  if(currentUser?.role!=="owner"){document.getElementById("userManagementView").innerHTML="<div class='panel'><p class='error'>Hospital Admin access only.</p></div>";return;}
   const el=document.getElementById("userManagementView");
   el.innerHTML=`
     <div class="panel">
       <h2>User Management</h2>
-      <p>Owner-only login control. Select a user and update the login code.</p>
       <div id="userMgmtMessage"></div>
     </div>
     <div class="panel table-wrap">
@@ -29,7 +29,7 @@ async function loadAppUsers(){
   const {data,error}=await db.from("app_users").select("*").order("username",{ascending:true});
   if(error){body.innerHTML=`<tr><td colspan='5' class='error'>${error.message}</td></tr>`;return;}
   const rows=data||[];
-  body.innerHTML=rows.length?rows.map(u=>`<tr><td>${u.username||""}</td><td>${u.display_name||""}</td><td>${u.role||""}</td><td>${u.status||"Active"}</td><td><button class='secondary' onclick='openLoginCodeChange("${u.username}")'>Change</button></td></tr>`).join(""):"<tr><td colspan='5'>No users found. Create users in Supabase first.</td></tr>";
+  body.innerHTML=rows.length?rows.map(u=>`<tr><td>${u.username||""}</td><td>${u.display_name||""}</td><td>${userRoleLabel(u.role)}</td><td>${u.status||"Active"}</td><td><button class='secondary' onclick='openLoginCodeChange("${u.username}")'>Change</button></td></tr>`).join(""):"<tr><td colspan='5'>No users found. Create users in Supabase first.</td></tr>";
 }
 function openLoginCodeChange(username){
   document.getElementById("changeLoginPanel").classList.remove("hidden");
