@@ -101,6 +101,47 @@ async function loadPatientIntoIPD(p,msg){
 }
 function generateAdmissionId(){return `IPD-${todayISO().replaceAll("-","")}-${String(Date.now()).slice(-4)}`}
 function generateIPDUHID(){return `RVH-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`}
+function normalizeIPDIdentity(value){return String(value||"").trim().toLowerCase()}
+function findActivePatientAdmission(records,{uhid,patientId,mobile}){
+  const targetUhid=normalizeIPDIdentity(uhid);
+  const targetPatientId=normalizeIPDIdentity(patientId);
+  const targetMobile=normalizeIPDIdentity(mobile);
+  return (records||[]).find(r=>{
+    if(!isActiveIPD(r))return false;
+    const recordUhid=normalizeIPDIdentity(r.uhid);
+    const recordPatientId=normalizeIPDIdentity(r.patient_id);
+    const recordMobile=normalizeIPDIdentity(r.mobile);
+    if(targetUhid&&recordUhid&&targetUhid===recordUhid)return true;
+    if(targetPatientId&&recordPatientId&&targetPatientId===recordPatientId)return true;
+    return !targetUhid&&!targetPatientId&&targetMobile&&recordMobile&&targetMobile===recordMobile;
+  });
+}
+function closeDuplicateIPDDialog(){document.getElementById("duplicateIPDBackdrop")?.remove()}
+function focusExistingIPD(admissionId){
+  closeDuplicateIPDDialog();
+  const id=String(admissionId||"");
+  const row=[...document.querySelectorAll("#ipdRows tr")].find(r=>String(r.dataset.admissionId||"")===id);
+  if(row){row.scrollIntoView({behavior:"smooth",block:"center"});row.classList.add("ipd-existing-highlight");setTimeout(()=>row.classList.remove("ipd-existing-highlight"),2600);}
+}
+function showDuplicateIPDDialog(admission){
+  closeDuplicateIPDDialog();
+  const wrap=document.createElement("div");
+  wrap.id="duplicateIPDBackdrop";
+  wrap.className="ipd-duplicate-backdrop";
+  wrap.innerHTML=`<div class="ipd-duplicate-dialog" role="dialog" aria-modal="true" aria-labelledby="duplicateIPDTitle"><div class="ipd-duplicate-icon">!</div><div><h3 id="duplicateIPDTitle">Patient Already Admitted</h3><p>This patient already has an active IPD admission. A second active admission has been blocked.</p></div><dl class="ipd-duplicate-details"><div><dt>Patient</dt><dd data-field="patient"></dd></div><div><dt>UHID</dt><dd data-field="uhid"></dd></div><div><dt>Admission ID</dt><dd data-field="admission"></dd></div><div><dt>Ward / Bed</dt><dd data-field="ward"></dd></div><div><dt>Doctor</dt><dd data-field="doctor"></dd></div><div><dt>Status</dt><dd data-field="status"></dd></div></dl><div class="ipd-duplicate-actions"><button type="button" class="secondary" data-action="cancel">Cancel</button><button type="button" data-action="open">Open Existing Admission</button></div></div>`;
+  const set=(field,value)=>{wrap.querySelector(`[data-field="${field}"]`).textContent=value||"-"};
+  set("patient",admission.patient_name);
+  set("uhid",admission.uhid);
+  set("admission",admission.admission_id||admission.id);
+  set("ward",[admission.ward_type,admission.bed_no].filter(Boolean).join(" / "));
+  set("doctor",admission.doctor||admission.consultant);
+  set("status",admission.status||"Admitted");
+  wrap.querySelector('[data-action="cancel"]').onclick=closeDuplicateIPDDialog;
+  wrap.querySelector('[data-action="open"]').onclick=()=>focusExistingIPD(admission.admission_id||admission.id);
+  wrap.addEventListener("click",e=>{if(e.target===wrap)closeDuplicateIPDDialog()});
+  document.body.appendChild(wrap);
+  wrap.querySelector('[data-action="open"]').focus();
+}
 
 async function saveIPDAdmission(e){
   e.preventDefault();
@@ -114,19 +155,23 @@ async function saveIPDAdmission(e){
   if(!bedNo){msg.innerHTML="<p class='error'>Bed number is required for IPD admission.</p>";return;}
   if(!doctor){msg.innerHTML="<p class='error'>Please select consultant from Doctor Master.</p>";return;}
   const existing=await fetchAll("ipd_admission");
+  const patientId=document.getElementById("ipdPatientId").value;
+  const selectedUhid=document.getElementById("ipdUhid").value;
+  const activeAdmission=findActivePatientAdmission(existing,{uhid:selectedUhid,patientId,mobile});
+  if(activeAdmission){msg.innerHTML="<p class='error'>Admission blocked: this patient already has an active IPD admission.</p>";showDuplicateIPDDialog(activeAdmission);return;}
   const occupied=existing.find(r=>isActiveIPD(r) && (r.ward_type||"")===wardType && String(r.bed_no||"").trim()===bedNo);
   if(occupied){msg.innerHTML=`<p class='error'>Bed already occupied: ${wardType} / ${bedNo} by ${occupied.patient_name||"another patient"}.</p>`;return;}
-  let patientId=document.getElementById("ipdPatientId").value;
-  let uhid=document.getElementById("ipdUhid").value || generateIPDUHID();
+  let savedPatientId=patientId;
+  let uhid=selectedUhid || generateIPDUHID();
   const department=doctor.department||document.getElementById("ipdDepartment").value;
   const patientPayload={uhid,patient_id:uhid,name,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),department,created_at:new Date().toISOString()};
-  if(!patientId){const {data,error}=await db.from("patient").insert([patientPayload]).select().single();if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}patientId=data.id;uhid=data.uhid||data.patient_id||uhid;}else{await db.from("patient").update(patientPayload).eq("id",patientId);}
+  if(!savedPatientId){const {data,error}=await db.from("patient").insert([patientPayload]).select().single();if(error){msg.innerHTML=`<p class='error'>Patient save failed: ${error.message}</p>`;return;}savedPatientId=data.id;uhid=data.uhid||data.patient_id||uhid;}else{await db.from("patient").update(patientPayload).eq("id",savedPatientId);}
   const admissionId=generateAdmissionId();
   const deposit=safeNumber(document.getElementById("ipdDeposit").value);
-  const payload={admission_id:admissionId,uhid,patient_id:patientId,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),admission_date:document.getElementById("ipdAdmissionDate").value,department,doctor:doctor.doctor_name,consultant:doctor.doctor_name,diagnosis:document.getElementById("ipdDiagnosis").value.trim(),treatment_type:document.getElementById("ipdTreatmentType").value,ward_type:wardType,bed_no:bedNo,advance:deposit,deposit_amount:deposit,payment_mode:document.getElementById("ipdPaymentMode").value,deposit_date:document.getElementById("ipdDepositDate").value,status:"Admitted",remarks:document.getElementById("ipdRemarks").value.trim(),created_at:new Date().toISOString()};
+  const payload={admission_id:admissionId,uhid,patient_id:savedPatientId,patient_name:name,age:safeNumber(document.getElementById("ipdAge").value),sex:document.getElementById("ipdSex").value,mobile,address:document.getElementById("ipdAddress").value.trim(),admission_date:document.getElementById("ipdAdmissionDate").value,department,doctor:doctor.doctor_name,consultant:doctor.doctor_name,diagnosis:document.getElementById("ipdDiagnosis").value.trim(),treatment_type:document.getElementById("ipdTreatmentType").value,ward_type:wardType,bed_no:bedNo,advance:deposit,deposit_amount:deposit,payment_mode:document.getElementById("ipdPaymentMode").value,deposit_date:document.getElementById("ipdDepositDate").value,status:"Admitted",remarks:document.getElementById("ipdRemarks").value.trim(),created_at:new Date().toISOString()};
   const {error}=await db.from("ipd_admission").insert([payload]);
   if(error){msg.innerHTML=`<p class='error'>IPD admission save failed: ${error.message}</p>`;return;}
-  document.getElementById("ipdPatientId").value=patientId;document.getElementById("ipdUhid").value=uhid;document.getElementById("ipdAdmissionId").value=admissionId;
+  document.getElementById("ipdPatientId").value=savedPatientId;document.getElementById("ipdUhid").value=uhid;document.getElementById("ipdAdmissionId").value=admissionId;
   msg.innerHTML=`<p class='success'>IPD admission saved. UHID: ${uhid}, Admission: ${admissionId}</p>`;
   await loadIPDRegister();
 }
@@ -138,5 +183,5 @@ async function loadIPDRegister(){
   const {data,error}=await db.from("ipd_admission").select("*").order("created_at",{ascending:false}).limit(100);
   if(error){body.innerHTML=`<tr><td colspan='10' class='error'>${error.message}</td></tr>`;return;}
   const rows=(data||[]).filter(isActiveIPD);
-  body.innerHTML=rows.length?rows.map(r=>`<tr><td>${r.admission_id||r.id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.doctor||r.consultant||""}</td><td>${[r.ward_type,r.bed_no].filter(Boolean).join(" / ")}</td><td>${r.treatment_type||""}</td><td>${money(r.deposit_amount||r.advance||0)}</td><td>${r.status||"Admitted"}</td><td><button class="secondary" onclick="dischargeIPD(${r.id})">Discharge</button></td></tr>`).join(""):"<tr><td colspan='10'>No current IPD admissions.</td></tr>";
+  body.innerHTML=rows.length?rows.map(r=>`<tr data-admission-id="${r.admission_id||r.id||""}"><td>${r.admission_id||r.id||""}</td><td>${r.uhid||""}</td><td>${r.patient_name||""}</td><td>${r.department||""}</td><td>${r.doctor||r.consultant||""}</td><td>${[r.ward_type,r.bed_no].filter(Boolean).join(" / ")}</td><td>${r.treatment_type||""}</td><td>${money(r.deposit_amount||r.advance||0)}</td><td>${r.status||"Admitted"}</td><td><button class="secondary" onclick="dischargeIPD(${r.id})">Discharge</button></td></tr>`).join(""):"<tr><td colspan='10'>No current IPD admissions.</td></tr>";
 }
