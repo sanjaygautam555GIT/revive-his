@@ -1,0 +1,24 @@
+/* IPD Billing layout correction: keep settlement in normal document flow. */
+#ipdBillWorkspace{display:flex;flex-direction:column;gap:18px;min-width:0}
+#ipdBillWorkspace.hidden{display:none!important}
+#ipdBillWorkspace>.panel{position:relative!important;inset:auto!important;float:none!important;clear:both;width:100%;max-width:100%;min-width:0;margin:0!important;transform:none!important}
+#ipdBillWorkspace>.table-wrap{display:block;overflow-x:auto;overflow-y:visible;max-height:none!important;contain:none!important}
+#ipdBillWorkspace>.table-wrap table{width:100%;min-width:900px;margin:0}
+#ipdBillWorkspace>.table-wrap+ .panel{display:block!important;position:relative!important;z-index:1;margin-top:0!important;overflow:visible!important}
+#ipdBillWorkspace>.table-wrap+ .panel h3{margin:0 0 16px}
+#ipdBillWorkspace>.table-wrap+ .panel .cards{display:grid!important;grid-template-columns:repeat(4,minmax(150px,1fr))!important;gap:14px!important;margin:0!important}
+#ipdBillWorkspace>.table-wrap+ .panel .card{min-width:0;position:static!important;transform:none!important;margin:0!important}
+#ipdBillWorkspace>.table-wrap+ .panel .grid:not(.cards){display:grid!important;grid-template-columns:repeat(4,minmax(160px,1fr))!important;gap:14px!important;align-items:end;margin-top:16px!important}
+#ipdBillWorkspace>.table-wrap+ .panel #saveIPDBillBtn{display:flex;margin:18px 0 0 auto;min-height:46px;align-items:center;justify-content:center}
+#ipdBillingMessage{clear:both;margin-top:12px}
+
+@media(max-width:1100px){
+  #ipdBillWorkspace>.table-wrap+ .panel .cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #ipdBillWorkspace>.table-wrap+ .panel .grid:not(.cards){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:640px){
+  #ipdBillWorkspace{gap:12px}
+  #ipdBillWorkspace>.table-wrap+ .panel .cards,
+  #ipdBillWorkspace>.table-wrap+ .panel .grid:not(.cards){grid-template-columns:1fr!important}
+  #ipdBillWorkspace>.table-wrap+ .panel #saveIPDBillBtn{width:100%;margin-top:14px}
+}
