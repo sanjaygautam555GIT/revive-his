@@ -22,8 +22,16 @@
   .app-shell:not(.hidden) .sidebar nav{
     min-height:0;
     overflow-y:auto;
+    overflow-x:hidden;
     overscroll-behavior:contain;
-    scrollbar-width:thin;
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+    padding-right:0;
+  }
+  .app-shell:not(.hidden) .sidebar nav::-webkit-scrollbar{
+    width:0;
+    height:0;
+    display:none;
   }
 
   .app-shell:not(.hidden) .main{
