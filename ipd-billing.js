@@ -11,7 +11,7 @@ async function renderIPDBilling(){
   el.innerHTML=`
     <div class="panel">
       <h2>IPD Final Billing & Discharge</h2>
-      <p>Final bill imports saved daily charges, adjusts advance, records balance/refund, and discharges patient.</p>
+      <p>Final bill imports saved daily charges, applies discount, adjusts advance, records balance/refund, and discharges patient.</p>
       <div class="form-row"><div><label>Search Admission ID / UHID / Patient Name</label><input id="ipdBillSearch" placeholder="Search active IPD admission"></div><button id="ipdBillSearchBtn">Search</button></div>
       <div id="ipdBillSearchResult"></div>
     </div>
@@ -23,8 +23,8 @@ async function renderIPDBilling(){
         <div class="grid" style="grid-template-columns:repeat(5,1fr)">
           <div><label>Category</label><select id="billItemCategory"><option>Doctor Charge</option><option>OT Charge</option><option>Anaesthesia</option><option>Nursing Charge</option><option>Consumables</option><option>Procedure Charge</option><option>Lab Charge</option><option>Pharmacy Charge</option><option>Discount</option><option>Other</option></select></div>
           <div><label>Description</label><input id="billItemDesc" placeholder="Extra charge / discount"></div>
-          <div><label>Rate</label><input id="billItemRate" type="number" value="0" step="0.01"></div>
-          <div><label>Qty / Days</label><input id="billItemQty" type="number" value="1" step="0.01"></div>
+          <div><label>Rate</label><input id="billItemRate" type="number" value="0" min="0" step="0.01"></div>
+          <div><label>Qty / Days</label><input id="billItemQty" type="number" value="1" min="0.01" step="0.01"></div>
           <div><label>&nbsp;</label><button type="button" id="addBillItemBtn">Add Item</button></div>
         </div>
       </div>
@@ -34,14 +34,16 @@ async function renderIPDBilling(){
       </div>
       <div class="panel">
         <h3>Final Settlement</h3>
-        <div class="grid cards" style="grid-template-columns:repeat(4,1fr)">
+        <div class="grid cards" style="grid-template-columns:repeat(5,1fr)">
           <div class="card"><span>Gross Bill</span><strong id="ipdGrossBill">₹0</strong></div>
+          <div class="card"><span>Discount</span><strong id="ipdDiscountTotal">₹0</strong></div>
+          <div class="card"><span>Net Bill</span><strong id="ipdNetBill">₹0</strong></div>
           <div class="card"><span>Advance Paid</span><strong id="ipdAdvancePaid">₹0</strong></div>
-          <div class="card"><span>Balance Payable</span><strong id="ipdBalancePayable">₹0</strong></div>
-          <div class="card"><span>Refund</span><strong id="ipdRefundAmount">₹0</strong></div>
+          <div class="card"><span>Balance / Refund</span><strong id="ipdBalanceOrRefund">₹0</strong></div>
         </div>
-        <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:12px">
-          <div><label>Additional Payment</label><input id="ipdFinalPayment" type="number" value="0" step="0.01"></div>
+        <div class="grid" style="grid-template-columns:repeat(5,1fr);margin-top:12px">
+          <div><label>Discount Amount</label><input id="ipdSettlementDiscount" type="number" value="0" min="0" step="0.01" placeholder="Enter discount"></div>
+          <div><label>Additional Payment</label><input id="ipdFinalPayment" type="number" value="0" min="0" step="0.01"></div>
           <div><label>Payment Mode</label><select id="ipdFinalPaymentMode"><option>Cash</option><option>UPI</option><option>Bank</option><option>Credit</option></select></div>
           <div><label>Billing Date</label><input id="ipdBillingDate" type="date"></div>
           <div><label>Remarks</label><input id="ipdBillingRemarks" placeholder="Optional"></div>
@@ -55,7 +57,7 @@ async function renderIPDBilling(){
   document.getElementById("ipdBillSearch").onkeydown=e=>{if(e.key==="Enter")searchIPDBillingAdmission()};
   document.getElementById("addBillItemBtn").onclick=addIPDBillItem;
   document.getElementById("saveIPDBillBtn").onclick=saveIPDFinalBill;
-  document.getElementById("ipdFinalPayment").oninput=renderIPDBillSummary;
+  document.getElementById("ipdSettlementDiscount").oninput=syncIPDSettlementDiscount;
 }
 
 async function searchIPDBillingAdmission(){
@@ -68,6 +70,7 @@ async function searchIPDBillingAdmission(){
   if(!admission){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
   ipdBillingState={admission,items:[]};
   await importDailyChargesForBill(admission);
+  document.getElementById("ipdSettlementDiscount").value="0";
   document.getElementById("ipdBillWorkspace").classList.remove("hidden");
   msg.innerHTML=`<p class='success'>Admission loaded: ${admission.patient_name||"Patient"}. ${ipdBillingState.items.length} daily charge(s) imported.</p>`;
   renderIPDAdmissionSummary();
@@ -102,20 +105,50 @@ function renderIPDAdmissionSummary(){
       <div><b>Ward/Bed</b><br>${[a.ward_type,a.bed_no].filter(Boolean).join(" / ")}</div><div><b>Diagnosis</b><br>${a.diagnosis||""}</div>
     </div>`;
 }
-function addIPDBillItem(){const category=document.getElementById("billItemCategory").value;const description=document.getElementById("billItemDesc").value.trim()||category;const rate=safeNumber(document.getElementById("billItemRate").value);const qty=safeNumber(document.getElementById("billItemQty").value)||1;ipdBillingState.items.push({category,description,rate,qty,source:"Final Adjustment"});document.getElementById("billItemDesc").value="";document.getElementById("billItemRate").value="0";document.getElementById("billItemQty").value="1";renderIPDBillItems();renderIPDBillSummary();}
-function removeIPDBillItem(index){ipdBillingState.items.splice(index,1);renderIPDBillItems();renderIPDBillSummary();}
+function addIPDBillItem(){const category=document.getElementById("billItemCategory").value;const description=document.getElementById("billItemDesc").value.trim()||category;const rate=Math.max(0,safeNumber(document.getElementById("billItemRate").value));const qty=Math.max(0.01,safeNumber(document.getElementById("billItemQty").value)||1);ipdBillingState.items.push({category,description,rate,qty,source:"Final Adjustment"});document.getElementById("billItemDesc").value="";document.getElementById("billItemRate").value="0";document.getElementById("billItemQty").value="1";renderIPDBillItems();renderIPDBillSummary();}
+function removeIPDBillItem(index){const removed=ipdBillingState.items[index];ipdBillingState.items.splice(index,1);if(removed?.source==="Final Settlement Discount")document.getElementById("ipdSettlementDiscount").value="0";renderIPDBillItems();renderIPDBillSummary();}
+function syncIPDSettlementDiscount(){
+  const input=document.getElementById("ipdSettlementDiscount");
+  const value=Math.max(0,safeNumber(input?.value));
+  ipdBillingState.items=ipdBillingState.items.filter(i=>i.source!=="Final Settlement Discount");
+  const grossBeforeDiscount=ipdBillingState.items.reduce((s,i)=>s+(ipdItemAmount(i)>0?ipdItemAmount(i):0),0);
+  const allowed=Math.min(value,grossBeforeDiscount);
+  if(input&&allowed!==value)input.value=allowed.toFixed(2);
+  if(allowed>0)ipdBillingState.items.push({category:"Discount",description:"Final bill discount",rate:allowed,qty:1,source:"Final Settlement Discount"});
+  renderIPDBillItems();
+  renderIPDBillSummary();
+}
 function renderIPDBillItems(){const body=document.getElementById("ipdBillItemsRows");body.innerHTML=ipdBillingState.items.length?ipdBillingState.items.map((i,idx)=>`<tr><td>${i.category}</td><td>${i.description}</td><td>${money(i.rate)}</td><td>${i.qty}</td><td>${money(ipdItemAmount(i))}</td><td>${i.source||"Manual"}</td><td><button class="secondary" onclick="removeIPDBillItem(${idx})">Remove</button></td></tr>`).join(""):"<tr><td colspan='7'>No daily charges imported. Add charges first in IPD Daily Charges or add final item here.</td></tr>";}
-function ipdBillTotals(){const gross=ipdBillingState.items.reduce((s,i)=>s+ipdItemAmount(i),0);const finalGross=Math.max(0,gross);const advance=safeNumber(ipdBillingState.admission?.deposit_amount||ipdBillingState.admission?.advance);const balance=Math.max(0,finalGross-advance);const refund=Math.max(0,advance-finalGross);return {gross:finalGross,advance,balance,refund};}
-function renderIPDBillSummary(){const t=ipdBillTotals();document.getElementById("ipdGrossBill").textContent=money(t.gross);document.getElementById("ipdAdvancePaid").textContent=money(t.advance);document.getElementById("ipdBalancePayable").textContent=money(t.balance);document.getElementById("ipdRefundAmount").textContent=money(t.refund);if(document.getElementById("ipdFinalPayment"))document.getElementById("ipdFinalPayment").value=t.balance.toFixed(2);}
+function ipdBillTotals(){
+  const positive=ipdBillingState.items.filter(i=>ipdItemAmount(i)>0).reduce((s,i)=>s+ipdItemAmount(i),0);
+  const discount=ipdBillingState.items.filter(i=>ipdItemAmount(i)<0).reduce((s,i)=>s+Math.abs(ipdItemAmount(i)),0);
+  const net=Math.max(0,positive-discount);
+  const advance=safeNumber(ipdBillingState.admission?.deposit_amount||ipdBillingState.admission?.advance);
+  const balance=Math.max(0,net-advance);
+  const refund=Math.max(0,advance-net);
+  return {gross:positive,discount,net,advance,balance,refund};
+}
+function renderIPDBillSummary(){
+  const t=ipdBillTotals();
+  document.getElementById("ipdGrossBill").textContent=money(t.gross);
+  document.getElementById("ipdDiscountTotal").textContent=money(t.discount);
+  document.getElementById("ipdNetBill").textContent=money(t.net);
+  document.getElementById("ipdAdvancePaid").textContent=money(t.advance);
+  document.getElementById("ipdBalanceOrRefund").textContent=t.refund>0?`Refund ${money(t.refund)}`:`Pay ${money(t.balance)}`;
+  if(document.getElementById("ipdFinalPayment"))document.getElementById("ipdFinalPayment").value=t.balance.toFixed(2);
+}
 function generateIPDBillId(){return `IPDBILL-${todayISO().replaceAll("-","")}-${String(Date.now()).slice(-4)}`}
 async function saveIPDFinalBill(){
   const msg=document.getElementById("ipdBillingMessage");const a=ipdBillingState.admission;if(!a){msg.innerHTML="<p class='error'>Load an admission first.</p>";return;}if(!ipdBillingState.items.length){msg.innerHTML="<p class='error'>No bill items found. Add daily charges first.</p>";return;}
   const t=ipdBillTotals();const billId=generateIPDBillId();const payment=safeNumber(document.getElementById("ipdFinalPayment").value);const billingDate=document.getElementById("ipdBillingDate").value||todayISO();
-  const master={bill_id:billId,admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,billing_date:billingDate,total:t.gross,gross_total:t.gross,advance:t.advance,balance:t.balance,refund:t.refund,final_payment:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,remarks:document.getElementById("ipdBillingRemarks").value.trim(),created_at:new Date().toISOString()};
+  if(payment<t.balance){msg.innerHTML=`<p class='error'>Additional payment must cover the balance payable of ${money(t.balance)}.</p>`;return;}
+  const remarks=document.getElementById("ipdBillingRemarks").value.trim();
+  const discountNote=t.discount>0?`Discount: ${money(t.discount)}`:"";
+  const master={bill_id:billId,admission_id:a.admission_id||String(a.id),uhid:a.uhid,patient_name:a.patient_name,billing_date:billingDate,total:t.net,gross_total:t.gross,advance:t.advance,balance:t.balance,refund:t.refund,final_payment:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,remarks:[remarks,discountNote].filter(Boolean).join(" | "),created_at:new Date().toISOString()};
   const {error:billError}=await db.from("ipd_billing").insert([master]);if(billError){msg.innerHTML=`<p class='error'>Final bill save failed: ${billError.message}</p>`;return;}
   const items=ipdBillingState.items.map(i=>({bill_id:billId,admission_id:a.admission_id||String(a.id),category:i.category,description:i.description,rate:safeNumber(i.rate),quantity:safeNumber(i.qty),amount:ipdItemAmount(i),created_at:new Date().toISOString()}));
   const {error:itemError}=await db.from("ipd_bill_items").insert(items);if(itemError){msg.innerHTML=`<p class='error'>Bill saved, but items failed: ${itemError.message}</p>`;return;}
   if(payment>0){await db.from("ipd_payments").insert([{bill_id:billId,admission_id:a.admission_id||String(a.id),amount:payment,payment_mode:document.getElementById("ipdFinalPaymentMode").value,payment_date:billingDate,created_at:new Date().toISOString()}]);}
   const {error:dischargeError}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:billingDate}).eq("id",a.id);if(dischargeError){msg.innerHTML=`<p class='error'>Bill saved, but discharge failed: ${dischargeError.message}</p>`;return;}
-  msg.innerHTML=`<p class='success'>Final bill saved and patient discharged. Bill ID: ${billId} <button type="button" class="secondary" onclick="printIPDFinalBill('${billId}')">Print Bill</button></p>`;
+  msg.innerHTML=`<p class='success'>Final bill saved with discount ${money(t.discount)} and patient discharged. Bill ID: ${billId} <button type="button" class="secondary" onclick="printIPDFinalBill('${billId}')">Print Bill</button></p>`;
 }
