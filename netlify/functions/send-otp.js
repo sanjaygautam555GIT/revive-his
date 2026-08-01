@@ -47,7 +47,14 @@ exports.handler = async (event) => {
   const origin = event.headers.origin || "";
   if (event.httpMethod === "OPTIONS") return response(204, {}, origin);
   if (event.httpMethod !== "POST") return response(405, { error: "Method not allowed." }, origin);
-  if (!SERVICE_KEY || !RESEND_API_KEY) return response(500, { error: "OTP service is not configured." }, origin);
+
+  const missing = [];
+  if (!SERVICE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (!RESEND_API_KEY) missing.push("RESEND_API_KEY");
+  if (missing.length) {
+    console.error("Missing OTP environment variables:", missing.join(", "));
+    return response(500, { error: `Missing Netlify environment variable: ${missing.join(", ")}. Redeploy after saving it.` }, origin);
+  }
 
   try {
     const { username, password } = JSON.parse(event.body || "{}");
@@ -102,6 +109,6 @@ exports.handler = async (event) => {
     }, origin);
   } catch (error) {
     console.error("send-otp", error);
-    return response(500, { error: "Unable to send OTP. Please try again." }, origin);
+    return response(500, { error: error.message || "Unable to send OTP. Please try again." }, origin);
   }
 };
