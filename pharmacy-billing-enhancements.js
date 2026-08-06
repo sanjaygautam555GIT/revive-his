@@ -1,6 +1,6 @@
 (function(){
 const GST='09AYCPG7076L1ZZ';let ready=false;
-const calc=()=>{const s=(window.pharmacyBillItems||[]).reduce((a,x)=>a+Number(x.total||0),0),d=Math.min(Math.max(Number(document.getElementById('billDiscount')?.value||0),0),s),n=s-d,f=Math.round(n);return{subtotal:s,discount:d,net:n,round:f-n,final:f}};
+const calc=()=>{const items=typeof pharmacyBillItems!=='undefined'?pharmacyBillItems:[],s=items.reduce((a,x)=>a+Number(x.total||0),0),d=Math.min(Math.max(Number(document.getElementById('billDiscount')?.value||0),0),s),n=s-d,f=Math.round(n);return{subtotal:s,discount:d,net:n,round:f-n,final:f}};
 const fmt=v=>`₹${Number(v||0).toFixed(2)}`;
 function enforcePaidOnly(){const status=document.getElementById('billPaymentStatus');if(status){status.innerHTML='<option value="Paid">Paid</option>';status.value='Paid';status.disabled=true}const dueCard=document.getElementById('salesDue')?.closest('.card');if(dueCard)dueCard.style.display='none'}
 function refresh(){const b=document.getElementById('pharmacyBillSummary');if(!b)return;const t=calc();billSubtotal.textContent=fmt(t.subtotal);billNetAmount.textContent=fmt(t.net);billRoundOff.textContent=`${t.round>=0?'+':''}${fmt(t.round)}`;billFinalAmount.textContent=`₹${t.final}`;const g=document.getElementById('billGrandTotal');if(g)g.textContent=`₹${t.final}`;enforcePaidOnly()}
