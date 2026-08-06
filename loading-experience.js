@@ -61,7 +61,22 @@
     let queued=false;
     const observer=new MutationObserver(records=>{
       if(queued)return;
-      const relevant=records.some(r=>r.target.closest?.(".view")||r.target.classList?.contains("view"));
+      // Animate only when substantial top-level UI blocks are inserted.
+      // Text/value refreshes (such as live pharmacy totals) must not restart
+      // the whole page animation.
+      const relevant=records.some(record=>{
+        if(record.type!=="childList"||!record.addedNodes.length)return false;
+        return Array.from(record.addedNodes).some(node=>{
+          if(node.nodeType!==Node.ELEMENT_NODE)return false;
+          const el=node;
+          return el.classList?.contains("panel")||
+            el.classList?.contains("card")||
+            el.classList?.contains("hs-page")||
+            el.classList?.contains("hs-card")||
+            el.classList?.contains("hs-layout")||
+            el.classList?.contains("hs-view-skeleton");
+        });
+      });
       if(!relevant)return;
       queued=true;
       requestAnimationFrame(()=>{
