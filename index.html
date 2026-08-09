@@ -25,6 +25,11 @@
 </head>
 <body>
 <section id="landingPage" class="landing-page">
+  <div class="hospital-info-strip">
+    <div><strong>Revive Hospital</strong><span>Integrated clinical care and digital hospital operations</span></div>
+    <div class="hospital-info-links"><a href="#specialities">Specialities</a><a href="#patient-services">Patient Services</a><a href="#appointment">Appointments</a><a href="#emergency">Emergency</a></div>
+  </div>
+
   <div class="landing-hero" id="home">
     <header class="landing-header">
       <div class="landing-brand">
@@ -32,14 +37,14 @@
         <div><strong>Revive HealthScope</strong><small>Smart Healthcare Management</small></div>
       </div>
       <nav class="landing-nav" aria-label="Public navigation">
-        <a href="#home">Home</a><a href="#hospital">Hospital</a><a href="#specialities">Specialities</a><a href="#platform">Platform</a><a href="#modules">Modules</a><a href="#about">About</a>
+        <a href="#home">Home</a><a href="#hospital">Hospital</a><a href="#specialities">Specialities</a><a href="#patient-services">Patient Services</a><a href="#platform">Platform</a><a href="#about">About</a>
         <button type="button" class="landing-login-btn" data-open-login>Login</button>
       </nav>
     </header>
     <div class="landing-hero-content">
-      <div class="landing-eyebrow">Connected hospital operations. One platform.</div>
+      <div class="landing-eyebrow">Connected hospital care. One coordinated platform.</div>
       <h1>Smarter Care Starts With Better Operations</h1>
-      <p class="landing-copy">Revive HealthScope connects clinical and administrative workflows across patient registration, inpatient care, pharmacy, diagnostics, billing, finance and reporting.</p>
+      <p class="landing-copy">Revive HealthScope connects patient registration, inpatient care, pharmacy, diagnostics, billing, finance and reporting while the public hospital website presents clinical services, specialties and patient access in one place.</p>
       <div class="landing-module-grid" id="modules">
         <div class="landing-module"><div class="landing-module-icon">✚</div><strong>OPD & Patient Registration</strong></div>
         <div class="landing-module"><div class="landing-module-icon">▣</div><strong>IPD & Bed Management</strong></div>
@@ -47,37 +52,68 @@
         <div class="landing-module"><div class="landing-module-icon">⌁</div><strong>Diagnostics & Billing</strong></div>
       </div>
       <div class="landing-actions">
-        <button type="button" class="landing-primary" data-open-login>Open Revive HealthScope</button>
-        <button type="button" class="landing-secondary" onclick="document.getElementById('hospital').scrollIntoView({behavior:'smooth'})">Explore Hospital</button>
+        <button type="button" class="landing-primary" onclick="document.getElementById('appointment').scrollIntoView({behavior:'smooth'})">Book an Appointment</button>
+        <button type="button" class="landing-secondary" onclick="document.getElementById('specialities').scrollIntoView({behavior:'smooth'})">Explore Specialities</button>
       </div>
       <div class="landing-summary">
         <div><strong>OPD + IPD</strong><span>Patient workflows</span></div>
         <div><strong>Pharmacy</strong><span>Stock & billing</span></div>
-        <div><strong>Finance</strong><span>Cash & reports</span></div>
+        <div><strong>Diagnostics</strong><span>Patient-linked services</span></div>
         <div><strong>Role Based</strong><span>Controlled access</span></div>
       </div>
     </div>
   </div>
 
+  <section class="appointment-band" id="appointment">
+    <div class="appointment-band-title"><span>Patient access</span><h2>Book an Appointment</h2><p>Choose a specialty or search for the service you need.</p></div>
+    <div class="appointment-search-card">
+      <div class="appointment-field"><span>⌕</span><input id="publicSpecialitySearch" placeholder="Search specialty or service"></div>
+      <div class="appointment-field"><span>⚕</span><select id="publicVisitType"><option>OPD Consultation</option><option>Emergency Assessment</option><option>Diagnostic Service</option><option>Follow-up Visit</option></select></div>
+      <button type="button" onclick="document.getElementById('appointmentForm').scrollIntoView({behavior:'smooth'})">Book an Appointment</button>
+    </div>
+  </section>
+
   <section class="landing-section landing-hospital" id="hospital">
-    <div class="landing-section-heading"><span>About the hospital</span><h2>Integrated Care With Connected Operations</h2><p>Revive Hospital can present its clinical services and hospital capabilities alongside the Revive HealthScope platform, giving patients and staff a clear view of care services and digital operations in one place.</p></div>
+    <div class="landing-section-heading"><span>About the hospital</span><h2>Integrated Care With Connected Operations</h2><p>Revive Hospital brings patient-facing clinical services together with the Revive HealthScope digital platform, helping clinical and administrative teams work from a shared operational system.</p></div>
     <div class="hospital-overview-grid">
-      <article class="hospital-overview-card"><div class="hospital-card-icon">24/7</div><h3>Emergency & Acute Care</h3><p>Support for urgent assessment, emergency treatment and coordinated admission workflows when inpatient care is required.</p></article>
-      <article class="hospital-overview-card"><div class="hospital-card-icon">OPD</div><h3>Outpatient Services</h3><p>Patient registration, consultation workflows, doctor assignment, fee collection and longitudinal patient records.</p></article>
+      <article class="hospital-overview-card"><div class="hospital-card-icon">24/7</div><h3>Emergency & Acute Care</h3><p>Urgent assessment, emergency treatment and coordinated admission workflows when inpatient care is required.</p></article>
+      <article class="hospital-overview-card"><div class="hospital-card-icon">OPD</div><h3>Outpatient Services</h3><p>Patient registration, consultation workflows, doctor assignment, fee collection and longitudinal records.</p></article>
       <article class="hospital-overview-card"><div class="hospital-card-icon">IPD</div><h3>Inpatient Care</h3><p>Admission, bed allocation, daily charges, pharmacy integration, final billing and discharge workflows.</p></article>
       <article class="hospital-overview-card"><div class="hospital-card-icon">Dx</div><h3>Diagnostics</h3><p>Connected laboratory and diagnostic billing workflows with patient-linked records and reporting.</p></article>
     </div>
   </section>
 
   <section class="landing-section landing-specialities" id="specialities">
-    <div class="landing-section-heading"><span>Clinical services</span><h2>Hospital Specialities</h2><p>Present the hospital’s key clinical areas clearly so visitors can understand the services available before entering the management application.</p></div>
+    <div class="landing-section-heading"><span>Centres of care</span><h2>Hospital Specialities</h2><p>Patients can quickly identify the major clinical areas available at Revive Hospital before booking a visit.</p></div>
     <div class="speciality-grid">
-      <article><div class="speciality-icon">✚</div><h3>General & Laparoscopic Surgery</h3><p>Surgical evaluation, operative care and minimally invasive procedure workflows.</p></article>
-      <article><div class="speciality-icon">◉</div><h3>Anesthesia & Pain Management</h3><p>Peri-operative anesthesia support, monitoring and pain-management services.</p></article>
-      <article><div class="speciality-icon">⚕</div><h3>Emergency Care</h3><p>Rapid assessment and coordinated treatment pathways for urgent hospital presentations.</p></article>
-      <article><div class="speciality-icon">♡</div><h3>Patient-Centric Care</h3><p>Care coordination built around patient records, continuity, billing transparency and follow-up.</p></article>
-      <article><div class="speciality-icon">Rx</div><h3>Pharmacy Services</h3><p>Medicine dispensing, stock management, purchase tracking, expiry monitoring and supplier returns.</p></article>
-      <article><div class="speciality-icon">⌁</div><h3>Laboratory & Diagnostics</h3><p>Investigation ordering, diagnostic billing and patient-linked test workflows.</p></article>
+      <article><div class="speciality-icon">✚</div><h3>General & Laparoscopic Surgery</h3><p>Surgical evaluation, operative care and minimally invasive procedure workflows.</p><a href="#appointment">Book consultation →</a></article>
+      <article><div class="speciality-icon">◉</div><h3>Anesthesia & Pain Management</h3><p>Peri-operative anesthesia support, monitoring and pain-management services.</p><a href="#appointment">Book consultation →</a></article>
+      <article><div class="speciality-icon">⚕</div><h3>Emergency Care</h3><p>Rapid assessment and coordinated treatment pathways for urgent hospital presentations.</p><a href="#emergency">Emergency access →</a></article>
+      <article><div class="speciality-icon">♡</div><h3>Patient-Centric Care</h3><p>Care coordination built around patient records, continuity, billing transparency and follow-up.</p><a href="#patient-services">Patient services →</a></article>
+      <article><div class="speciality-icon">Rx</div><h3>Pharmacy Services</h3><p>Medicine dispensing, stock management, purchase tracking, expiry monitoring and supplier returns.</p><a href="#platform">Digital pharmacy →</a></article>
+      <article><div class="speciality-icon">⌁</div><h3>Laboratory & Diagnostics</h3><p>Investigation ordering, diagnostic billing and patient-linked test workflows.</p><a href="#appointment">Book diagnostic visit →</a></article>
+    </div>
+  </section>
+
+  <section class="landing-section patient-services-section" id="patient-services">
+    <div class="landing-section-heading"><span>For patients</span><h2>Quick Access to Hospital Services</h2><p>A patient-focused navigation layer inspired by leading hospital websites, adapted to the actual services and workflows already represented in Revive HealthScope.</p></div>
+    <div class="patient-service-grid">
+      <a href="#appointment"><strong>Find a Specialty</strong><span>Choose the right clinical service for your visit.</span></a>
+      <a href="#appointment"><strong>Book an Appointment</strong><span>Start an OPD consultation or follow-up request.</span></a>
+      <a href="#specialities"><strong>Clinical Services</strong><span>Review surgery, anesthesia, emergency and diagnostics.</span></a>
+      <a href="#emergency"><strong>Emergency Care</strong><span>See emergency access and hospital workflow information.</span></a>
+      <a href="#platform"><strong>Pharmacy Services</strong><span>Understand pharmacy stock, billing and medicine workflows.</span></a>
+      <a href="#about"><strong>About Revive Hospital</strong><span>Learn how hospital care and digital operations connect.</span></a>
+    </div>
+  </section>
+
+  <section class="landing-section procedures-section">
+    <div class="landing-section-heading"><span>Care pathways</span><h2>Common Clinical Pathways</h2><p>Present important treatment and service categories without overstating capabilities that have not yet been configured in the hospital profile.</p></div>
+    <div class="procedure-columns">
+      <div><h3>Surgical Care</h3><a href="#specialities">General Surgery</a><a href="#specialities">Laparoscopic Surgery</a><a href="#specialities">Pre-operative Assessment</a></div>
+      <div><h3>Peri-operative Care</h3><a href="#specialities">Anesthesia Assessment</a><a href="#specialities">Pain Management</a><a href="#specialities">Post-operative Monitoring</a></div>
+      <div><h3>Diagnostics</h3><a href="#specialities">Laboratory Services</a><a href="#specialities">Diagnostic Billing</a><a href="#specialities">Patient-linked Investigations</a></div>
+      <div><h3>Patient Support</h3><a href="#patient-services">OPD Registration</a><a href="#patient-services">Follow-up Visits</a><a href="#platform">Billing & Pharmacy Support</a></div>
     </div>
   </section>
 
@@ -114,11 +150,33 @@
     </div>
   </section>
 
+  <section class="landing-section emergency-section" id="emergency">
+    <div class="emergency-card"><div><span>Emergency access</span><h2>Emergency Care, 24/7 Workflow Ready</h2><p>Use this area for emergency department access details and the hospital’s verified emergency contact number when you are ready to publish it.</p></div><button type="button" onclick="document.getElementById('appointment').scrollIntoView({behavior:'smooth'})">Patient Access</button></div>
+  </section>
+
+  <section class="landing-section appointment-form-section" id="appointmentForm">
+    <div class="landing-section-heading"><span>Appointment request</span><h2>Start Your Visit</h2><p>This front-end request form can later be connected directly to the OPD appointment workflow.</p></div>
+    <form class="public-appointment-form" onsubmit="event.preventDefault();document.getElementById('appointmentFormMessage').textContent='Appointment request captured on this page. Connect this form to the OPD backend when you are ready to enable online booking.';">
+      <input required placeholder="Patient name">
+      <input required inputmode="tel" placeholder="Mobile number">
+      <select required><option value="">Select speciality</option><option>General & Laparoscopic Surgery</option><option>Anesthesia & Pain Management</option><option>Emergency Care</option><option>Laboratory & Diagnostics</option></select>
+      <select required><option>New Consultation</option><option>Follow-up Visit</option><option>Diagnostic Visit</option></select>
+      <button type="submit">Request Appointment</button>
+    </form>
+    <div id="appointmentFormMessage" class="appointment-form-message"></div>
+  </section>
+
   <section class="landing-section landing-cta" id="about">
     <div><span>Revive HealthScope</span><h2>One Workspace for Clinical and Administrative Operations</h2><p>A practical hospital management platform designed to keep patient care, billing, pharmacy, diagnostics and management information connected.</p></div>
     <button type="button" class="landing-primary" data-open-login>Login to Revive HealthScope</button>
   </section>
-  <footer class="landing-footer"><strong>Revive HealthScope</strong><span>Smart Healthcare Management</span></footer>
+
+  <footer class="hospital-footer">
+    <div class="hospital-footer-brand"><strong>Revive HealthScope</strong><span>Smart Healthcare Management</span><p>Clinical services, patient access and hospital operations presented through one connected digital experience.</p></div>
+    <div><h3>For Patients</h3><a href="#appointment">Book Appointment</a><a href="#specialities">Specialities</a><a href="#patient-services">Patient Services</a><a href="#emergency">Emergency Care</a></div>
+    <div><h3>Hospital</h3><a href="#hospital">About Hospital</a><a href="#specialities">Clinical Services</a><a href="#platform">Digital Platform</a><a href="#about">About Revive HealthScope</a></div>
+    <div><h3>Operations</h3><a href="#platform">Patient Management</a><a href="#platform">Pharmacy</a><a href="#platform">Billing & Finance</a><button type="button" data-open-login>Staff Login</button></div>
+  </footer>
 </section>
 
 <section id="loginPage" class="login-page hidden">
