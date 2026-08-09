@@ -20,11 +20,63 @@
   <link rel="stylesheet" href="ipd-duplicate-guard.css">
   <link rel="stylesheet" href="ipd-billing-layout.css">
   <link rel="stylesheet" href="login-redesign.css">
+  <link rel="stylesheet" href="landing-page.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<section id="loginPage" class="login-page">
+<section id="landingPage" class="landing-page">
+  <div class="landing-hero" id="home">
+    <header class="landing-header">
+      <div class="landing-brand">
+        <div class="landing-brand-mark">+</div>
+        <div><strong>Revive HealthScope</strong><small>Smart Healthcare Management</small></div>
+      </div>
+      <nav class="landing-nav" aria-label="Public navigation">
+        <a href="#home">Home</a><a href="#platform">Platform</a><a href="#modules">Modules</a><a href="#about">About</a>
+        <button type="button" class="landing-login-btn" data-open-login>Login</button>
+      </nav>
+    </header>
+    <div class="landing-hero-content">
+      <div class="landing-eyebrow">Connected hospital operations. One platform.</div>
+      <h1>Smarter Care Starts With Better Operations</h1>
+      <p class="landing-copy">Revive HealthScope brings patient registration, inpatient workflows, pharmacy, diagnostics, billing and reporting into one professional hospital management workspace.</p>
+      <div class="landing-module-grid" id="modules">
+        <div class="landing-module"><div class="landing-module-icon">✚</div><strong>OPD & Patient Registration</strong></div>
+        <div class="landing-module"><div class="landing-module-icon">▣</div><strong>IPD & Bed Management</strong></div>
+        <div class="landing-module"><div class="landing-module-icon">Rx</div><strong>Pharmacy & Stock</strong></div>
+        <div class="landing-module"><div class="landing-module-icon">⌁</div><strong>Diagnostics & Billing</strong></div>
+      </div>
+      <div class="landing-actions">
+        <button type="button" class="landing-primary" data-open-login>Open Revive HealthScope</button>
+        <button type="button" class="landing-secondary" onclick="document.getElementById('platform').scrollIntoView({behavior:'smooth'})">Explore Platform</button>
+      </div>
+      <div class="landing-summary">
+        <div><strong>OPD + IPD</strong><span>Patient workflows</span></div>
+        <div><strong>Pharmacy</strong><span>Stock & billing</span></div>
+        <div><strong>Finance</strong><span>Cash & reports</span></div>
+        <div><strong>Role Based</strong><span>Controlled access</span></div>
+      </div>
+    </div>
+  </div>
+  <section class="landing-section" id="platform">
+    <h2>Built for Everyday Hospital Work</h2>
+    <p>Core modules share one consistent interface so reception, inpatient teams, pharmacy, accounts and administrators can work from the same system.</p>
+    <div class="landing-feature-grid">
+      <article><h3>Patient Management</h3><p>Search patient records, review activity and continue OPD or IPD workflows from the same patient profile.</p></article>
+      <article><h3>Inpatient Workflow</h3><p>Manage admissions, daily charges, billing and discharge without duplicating patient data.</p></article>
+      <article><h3>Pharmacy Operations</h3><p>Track purchases, stock, billing, near-expiry inventory and supplier returns.</p></article>
+      <article><h3>Reports & Finance</h3><p>Bring collections, expenses, cash reporting and management summaries into a single reporting layer.</p></article>
+    </div>
+  </section>
+  <section class="landing-section" id="about">
+    <h2>Revive HealthScope</h2>
+    <p>A hospital management platform designed around practical clinical and administrative workflows.</p>
+  </section>
+</section>
+
+<section id="loginPage" class="login-page hidden">
   <div class="login-card">
+    <button id="backToLandingBtn" type="button" class="landing-back-login">← Home</button>
     <h1>Revive HealthScope</h1>
     <p id="loginHelp">Smart Healthcare Management</p>
     <form id="loginForm">
@@ -52,6 +104,6 @@
     <section id="dashboardView" class="view"></section><section id="patientSearchView" class="view hidden"></section><section id="cashReportView" class="view hidden"></section><section id="cashBookView" class="view hidden"></section><section id="reportsView" class="view hidden"></section><section id="opdView" class="view hidden"></section><section id="ipdView" class="view hidden"></section><section id="ipdChargesView" class="view hidden"></section><section id="ipdBillingView" class="view hidden"></section><section id="doctorMasterView" class="view hidden"></section><section id="pharmacyStockView" class="view hidden"></section><section id="purchaseRegisterView" class="view hidden"></section><section id="supplierMasterView" class="view hidden"></section><section id="medicineMasterView" class="view hidden"></section><section id="pharmacyBillingView" class="view hidden"></section><section id="expensesView" class="view hidden"></section>
   </main>
 </section>
-<script src="supabase-config.js"></script><script src="auth.js"></script><script src="utils.js"></script><script src="finance-utils.js"></script><script src="print-utils.js"></script><script src="dashboard.js"></script><script src="patient-search.js"></script><script src="patient-profile-opd-fix.js"></script><script src="patient-360.js"></script><script src="cash-report.js"></script><script src="pharmacy-stock.js"></script><script src="pharmacy-stock-schema-fix.js"></script><script src="pharmacy-stock-search.js"></script><script src="purchase-register.js"></script><script src="purchase-register-schema-fix.js"></script><script src="masters.js"></script><script src="app.js"></script><script src="accountant-nav-fix.js"></script><script src="branding.js"></script><script src="shell-enhancements.js"></script><script src="page-cleanup.js"></script><script src="interactions.js"></script><script src="phase-one-shell.js"></script><script src="phase-two-pages.js"></script><script src="loading-experience.js"></script><script src="notifications.js"></script>
+<script src="landing-page.js"></script><script src="supabase-config.js"></script><script src="auth.js"></script><script src="utils.js"></script><script src="finance-utils.js"></script><script src="print-utils.js"></script><script src="dashboard.js"></script><script src="patient-search.js"></script><script src="patient-profile-opd-fix.js"></script><script src="patient-360.js"></script><script src="cash-report.js"></script><script src="pharmacy-stock.js"></script><script src="pharmacy-stock-schema-fix.js"></script><script src="pharmacy-stock-search.js"></script><script src="purchase-register.js"></script><script src="purchase-register-schema-fix.js"></script><script src="masters.js"></script><script src="app.js"></script><script src="accountant-nav-fix.js"></script><script src="branding.js"></script><script src="shell-enhancements.js"></script><script src="page-cleanup.js"></script><script src="interactions.js"></script><script src="phase-one-shell.js"></script><script src="phase-two-pages.js"></script><script src="loading-experience.js"></script><script src="notifications.js"></script>
 </body>
 </html>
