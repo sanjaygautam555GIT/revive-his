@@ -32,14 +32,14 @@
         <div><strong>Revive HealthScope</strong><small>Smart Healthcare Management</small></div>
       </div>
       <nav class="landing-nav" aria-label="Public navigation">
-        <a href="#home">Home</a><a href="#platform">Platform</a><a href="#modules">Modules</a><a href="#about">About</a>
+        <a href="#home">Home</a><a href="#hospital">Hospital</a><a href="#specialities">Specialities</a><a href="#platform">Platform</a><a href="#modules">Modules</a><a href="#about">About</a>
         <button type="button" class="landing-login-btn" data-open-login>Login</button>
       </nav>
     </header>
     <div class="landing-hero-content">
       <div class="landing-eyebrow">Connected hospital operations. One platform.</div>
       <h1>Smarter Care Starts With Better Operations</h1>
-      <p class="landing-copy">Revive HealthScope brings patient registration, inpatient workflows, pharmacy, diagnostics, billing and reporting into one professional hospital management workspace.</p>
+      <p class="landing-copy">Revive HealthScope connects clinical and administrative workflows across patient registration, inpatient care, pharmacy, diagnostics, billing, finance and reporting.</p>
       <div class="landing-module-grid" id="modules">
         <div class="landing-module"><div class="landing-module-icon">✚</div><strong>OPD & Patient Registration</strong></div>
         <div class="landing-module"><div class="landing-module-icon">▣</div><strong>IPD & Bed Management</strong></div>
@@ -48,7 +48,7 @@
       </div>
       <div class="landing-actions">
         <button type="button" class="landing-primary" data-open-login>Open Revive HealthScope</button>
-        <button type="button" class="landing-secondary" onclick="document.getElementById('platform').scrollIntoView({behavior:'smooth'})">Explore Platform</button>
+        <button type="button" class="landing-secondary" onclick="document.getElementById('hospital').scrollIntoView({behavior:'smooth'})">Explore Hospital</button>
       </div>
       <div class="landing-summary">
         <div><strong>OPD + IPD</strong><span>Patient workflows</span></div>
@@ -58,9 +58,31 @@
       </div>
     </div>
   </div>
-  <section class="landing-section" id="platform">
-    <h2>Built for Everyday Hospital Work</h2>
-    <p>Core modules share one consistent interface so reception, inpatient teams, pharmacy, accounts and administrators can work from the same system.</p>
+
+  <section class="landing-section landing-hospital" id="hospital">
+    <div class="landing-section-heading"><span>About the hospital</span><h2>Integrated Care With Connected Operations</h2><p>Revive Hospital can present its clinical services and hospital capabilities alongside the Revive HealthScope platform, giving patients and staff a clear view of care services and digital operations in one place.</p></div>
+    <div class="hospital-overview-grid">
+      <article class="hospital-overview-card"><div class="hospital-card-icon">24/7</div><h3>Emergency & Acute Care</h3><p>Support for urgent assessment, emergency treatment and coordinated admission workflows when inpatient care is required.</p></article>
+      <article class="hospital-overview-card"><div class="hospital-card-icon">OPD</div><h3>Outpatient Services</h3><p>Patient registration, consultation workflows, doctor assignment, fee collection and longitudinal patient records.</p></article>
+      <article class="hospital-overview-card"><div class="hospital-card-icon">IPD</div><h3>Inpatient Care</h3><p>Admission, bed allocation, daily charges, pharmacy integration, final billing and discharge workflows.</p></article>
+      <article class="hospital-overview-card"><div class="hospital-card-icon">Dx</div><h3>Diagnostics</h3><p>Connected laboratory and diagnostic billing workflows with patient-linked records and reporting.</p></article>
+    </div>
+  </section>
+
+  <section class="landing-section landing-specialities" id="specialities">
+    <div class="landing-section-heading"><span>Clinical services</span><h2>Hospital Specialities</h2><p>Present the hospital’s key clinical areas clearly so visitors can understand the services available before entering the management application.</p></div>
+    <div class="speciality-grid">
+      <article><div class="speciality-icon">✚</div><h3>General & Laparoscopic Surgery</h3><p>Surgical evaluation, operative care and minimally invasive procedure workflows.</p></article>
+      <article><div class="speciality-icon">◉</div><h3>Anesthesia & Pain Management</h3><p>Peri-operative anesthesia support, monitoring and pain-management services.</p></article>
+      <article><div class="speciality-icon">⚕</div><h3>Emergency Care</h3><p>Rapid assessment and coordinated treatment pathways for urgent hospital presentations.</p></article>
+      <article><div class="speciality-icon">♡</div><h3>Patient-Centric Care</h3><p>Care coordination built around patient records, continuity, billing transparency and follow-up.</p></article>
+      <article><div class="speciality-icon">Rx</div><h3>Pharmacy Services</h3><p>Medicine dispensing, stock management, purchase tracking, expiry monitoring and supplier returns.</p></article>
+      <article><div class="speciality-icon">⌁</div><h3>Laboratory & Diagnostics</h3><p>Investigation ordering, diagnostic billing and patient-linked test workflows.</p></article>
+    </div>
+  </section>
+
+  <section class="landing-section landing-platform" id="platform">
+    <div class="landing-section-heading"><span>Digital hospital platform</span><h2>Built for Everyday Hospital Work</h2><p>Core modules share one consistent interface so reception, inpatient teams, pharmacy, accounts and administrators can work from the same system.</p></div>
     <div class="landing-feature-grid">
       <article><h3>Patient Management</h3><p>Search patient records, review activity and continue OPD or IPD workflows from the same patient profile.</p></article>
       <article><h3>Inpatient Workflow</h3><p>Manage admissions, daily charges, billing and discharge without duplicating patient data.</p></article>
@@ -68,10 +90,35 @@
       <article><h3>Reports & Finance</h3><p>Bring collections, expenses, cash reporting and management summaries into a single reporting layer.</p></article>
     </div>
   </section>
-  <section class="landing-section" id="about">
-    <h2>Revive HealthScope</h2>
-    <p>A hospital management platform designed around practical clinical and administrative workflows.</p>
+
+  <section class="landing-section landing-workflow-section">
+    <div class="landing-section-heading"><span>One connected workflow</span><h2>From Registration to Final Billing</h2><p>Revive HealthScope is structured so patient and financial information can move through the hospital without repeatedly recreating the same record.</p></div>
+    <div class="workflow-strip">
+      <div><strong>01</strong><span>Patient Registration</span></div><b>→</b>
+      <div><strong>02</strong><span>OPD / Admission</span></div><b>→</b>
+      <div><strong>03</strong><span>Diagnostics & Pharmacy</span></div><b>→</b>
+      <div><strong>04</strong><span>Billing & Payments</span></div><b>→</b>
+      <div><strong>05</strong><span>Reports & Follow-up</span></div>
+    </div>
   </section>
+
+  <section class="landing-section landing-security-section">
+    <div class="security-layout">
+      <div><span class="section-kicker">Hospital administration</span><h2>Designed for Different Hospital Teams</h2><p>Role-based navigation keeps each staff member focused on the workflows relevant to their responsibility while management retains visibility across operations.</p></div>
+      <div class="role-grid">
+        <article><strong>Hospital Admin</strong><span>Dashboard, reporting, masters and user control</span></article>
+        <article><strong>Hospital Staff</strong><span>OPD, IPD, diagnostics and patient search</span></article>
+        <article><strong>Pharmacy</strong><span>Stock, purchases, billing and expiry returns</span></article>
+        <article><strong>Accounts</strong><span>Expenses, cash reporting and financial summaries</span></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="landing-section landing-cta" id="about">
+    <div><span>Revive HealthScope</span><h2>One Workspace for Clinical and Administrative Operations</h2><p>A practical hospital management platform designed to keep patient care, billing, pharmacy, diagnostics and management information connected.</p></div>
+    <button type="button" class="landing-primary" data-open-login>Login to Revive HealthScope</button>
+  </section>
+  <footer class="landing-footer"><strong>Revive HealthScope</strong><span>Smart Healthcare Management</span></footer>
 </section>
 
 <section id="loginPage" class="login-page hidden">
