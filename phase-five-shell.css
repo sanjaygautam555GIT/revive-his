@@ -5,6 +5,11 @@
   --shell-divider:#dfe7ec;
 }
 
+/* Authentication boundary: never allow responsive/layout styles to reveal the app shell. */
+.app-shell.hidden{display:none!important}
+body:has(#loginPage:not(.hidden)) .app-shell{display:none!important}
+body:has(#loginPage:not(.hidden)) .shell-overlay{display:none!important}
+
 @media(min-width:901px){
   html,body{height:100%;overflow:hidden}
   .app-shell:not(.hidden){display:block!important;height:100dvh;min-height:0;overflow:hidden;background:#f4f7f9}
@@ -28,11 +33,7 @@
     -ms-overflow-style:none;
     padding-right:0;
   }
-  .app-shell:not(.hidden) .sidebar nav::-webkit-scrollbar{
-    width:0;
-    height:0;
-    display:none;
-  }
+  .app-shell:not(.hidden) .sidebar nav::-webkit-scrollbar{width:0;height:0;display:none}
 
   .app-shell:not(.hidden) .main{
     position:fixed;
@@ -50,57 +51,30 @@
     transition:left .22s ease;
   }
 
-  body.sidebar-collapsed .app-shell:not(.hidden) .sidebar{
-    width:var(--shell-sidebar-collapsed)!important;
-    min-width:var(--shell-sidebar-collapsed)!important;
-  }
-  body.sidebar-collapsed .app-shell:not(.hidden) .main{
-    left:var(--shell-sidebar-collapsed);
-  }
+  body.sidebar-collapsed .app-shell:not(.hidden) .sidebar{width:var(--shell-sidebar-collapsed)!important;min-width:var(--shell-sidebar-collapsed)!important}
+  body.sidebar-collapsed .app-shell:not(.hidden) .main{left:var(--shell-sidebar-collapsed)}
 
   .app-shell:not(.hidden) .topbar{
-    position:sticky!important;
-    top:0;
-    z-index:40;
-    min-height:var(--shell-topbar);
+    position:sticky!important;top:0;z-index:40;min-height:var(--shell-topbar);
     margin:0 calc(var(--workspace-gutter) * -1) 0!important;
-    padding:0 var(--workspace-gutter)!important;
-    border-bottom:1px solid var(--shell-divider);
-    background:rgba(255,255,255,.96)!important;
-    backdrop-filter:blur(14px);
+    padding:0 var(--workspace-gutter)!important;border-bottom:1px solid var(--shell-divider);
+    background:rgba(255,255,255,.96)!important;backdrop-filter:blur(14px);
     box-shadow:0 4px 14px rgba(15,23,42,.045)!important;
   }
 
   .app-shell:not(.hidden) .view{
-    width:min(100%,var(--workspace-max));
-    min-height:calc(100dvh - var(--shell-topbar) - 32px);
-    margin:0 auto!important;
-    padding:20px 0 0!important;
-    box-sizing:border-box;
+    width:min(100%,var(--workspace-max));min-height:calc(100dvh - var(--shell-topbar) - 32px);
+    margin:0 auto!important;padding:20px 0 0!important;box-sizing:border-box;
   }
   .app-shell:not(.hidden) .view.hidden{display:none!important}
-
-  .app-shell:not(.hidden) .panel,
-  .app-shell:not(.hidden) .hs-card,
-  .app-shell:not(.hidden) .hs-toolbar{
-    max-width:100%;
-  }
+  .app-shell:not(.hidden) .panel,.app-shell:not(.hidden) .hs-card,.app-shell:not(.hidden) .hs-toolbar{max-width:100%}
 }
 
 @media(max-width:900px){
   html,body{height:auto;overflow-x:hidden;overflow-y:auto}
-  .app-shell:not(.hidden){height:auto;min-height:100dvh;overflow:visible}
-  .app-shell:not(.hidden) .main{
-    position:relative!important;
-    inset:auto!important;
-    height:auto!important;
-    min-height:100dvh;
-    margin:0!important;
-    overflow:visible!important;
-  }
+  .app-shell:not(.hidden){display:block!important;height:auto;min-height:100dvh;overflow:visible}
+  .app-shell:not(.hidden) .main{position:relative!important;inset:auto!important;height:auto!important;min-height:100dvh;margin:0!important;overflow:visible!important}
   .app-shell:not(.hidden) .view{width:100%;min-height:auto;margin:0!important}
 }
 
-@media(min-width:1700px){
-  :root{--workspace-gutter:32px;--workspace-max:1680px}
-}
+@media(min-width:1700px){:root{--workspace-gutter:32px;--workspace-max:1680px}}
