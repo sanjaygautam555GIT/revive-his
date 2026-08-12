@@ -8,6 +8,20 @@
     if(element)element.textContent=text;
   }
 
+  function applyPharmacyPrintBrand(){
+    if(typeof window.openPrintWindow!=="function"||window.openPrintWindow.__shagunBranding)return;
+    const original=window.openPrintWindow;
+    const wrapped=function(html){
+      let output=html;
+      if(typeof output==="string"){
+        output=output.replace(/Revive HealthScope Pharmacy/g,"Shagun Pharmacy");
+      }
+      return original.call(this,output);
+    };
+    wrapped.__shagunBranding=true;
+    window.openPrintWindow=wrapped;
+  }
+
   function applyBranding(){
     try{
       document.title="Revive HealthScope";
@@ -23,6 +37,8 @@
         footer.textContent=`© ${new Date().getFullYear()} Revive HealthScope`;
         loginCard.appendChild(footer);
       }
+
+      applyPharmacyPrintBrand();
     }catch(error){
       // Branding must never stop authentication or application loading.
       console.warn("Branding could not be applied:",error);
