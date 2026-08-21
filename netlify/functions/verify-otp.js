@@ -59,7 +59,7 @@ exports.handler = async (event) => {
     const enteredOtp = String(otp || "").replace(/\D/g, "");
     if (!key || !/^\d{6}$/.test(enteredOtp)) return response(400, { error: "Enter the 6-digit OTP." }, origin);
 
-    const users = await supabase(`app_users?username=eq.${encodeURIComponent(key)}&select=id,username,display_name,role,email,status&limit=1`);
+    const users = await supabase(`app_users?username=eq.${encodeURIComponent(key)}&select=id,username,display_name,role,email,status,doctor_id&limit=1`);
     const user = users?.[0];
     if (!user || (user.status || "Active") !== "Active" || !user.email) return response(401, { error: "Login request is no longer valid." }, origin);
 
@@ -95,7 +95,8 @@ exports.handler = async (event) => {
         id: user.id,
         username: key,
         role: user.role,
-        name: user.display_name || key
+        name: user.display_name || key,
+        doctor_id: user.doctor_id || null
       },
       sessionToken: `${payload}.${signature}`
     }, origin);
