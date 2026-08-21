@@ -48,7 +48,7 @@
 
   async function renderIPDClinicalDischargeAction(){
     const host=document.getElementById('ipdAdmissionSummary');
-    const admission=window.ipdBillingState?.admission;
+    const admission=(typeof ipdBillingState!=='undefined')?ipdBillingState.admission:null;
     if(!host||!admission)return;
     host.querySelector('.ipd-clinical-discharge-box')?.remove();
     const box=document.createElement('div');
