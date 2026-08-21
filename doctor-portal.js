@@ -1,0 +1,163 @@
+if(!document.querySelector('link[href="doctor-portal.css"]')){const l=document.createElement('link');l.rel='stylesheet';l.href='doctor-portal.css';document.head.appendChild(l)}
+const doctorPortalState={doctor:null,patients:[],selected:null,notes:[],discharge:null};
+
+function doctorPortalEscape(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]))}
+function doctorPortalDate(value){if(!value)return "";try{return new Date(value).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}catch{return value}}
+function doctorPortalNameKey(value){return String(value||"").toLowerCase().replace(/^dr\.?\s*/,"").replace(/[^a-z0-9]+/g," ").trim()}
+function doctorPortalIsActive(a){return String(a.status||"Admitted").toLowerCase()!=="discharged"}
+function doctorPortalMsg(id,text,type="success"){const el=document.getElementById(id);if(el)el.innerHTML=`<p class='${type}'>${doctorPortalEscape(text)}</p>`}
+
+async function resolveLoggedInDoctor(){
+  const {data,error}=await db.from("doctor_master").select("*").eq("status","Active").order("doctor_name",{ascending:true});
+  if(error)throw error;
+  const doctors=data||[];
+  if(currentUser?.doctor_id){
+    const match=doctors.find(d=>String(d.id)===String(currentUser.doctor_id));
+    if(match)return match;
+  }
+  const userKey=doctorPortalNameKey(currentUser?.name||currentUser?.username);
+  return doctors.find(d=>doctorPortalNameKey(d.doctor_name)===userKey)||null;
+}
+
+async function doctorPortalLoadPatients(){
+  const doctor=doctorPortalState.doctor||await resolveLoggedInDoctor();
+  doctorPortalState.doctor=doctor;
+  if(!doctor)return [];
+  const {data,error}=await db.from("ipd_admission").select("*").order("created_at",{ascending:false});
+  if(error)throw error;
+  const key=doctorPortalNameKey(doctor.doctor_name);
+  doctorPortalState.patients=(data||[]).filter(a=>doctorPortalIsActive(a)&&[a.doctor,a.consultant].some(n=>doctorPortalNameKey(n)===key));
+  return doctorPortalState.patients;
+}
+
+async function renderDoctorPortal(){
+  const el=document.getElementById("doctorPortalView");
+  if(currentUser?.role!=="doctor"){el.innerHTML="<div class='panel'><p class='error'>Doctor access only.</p></div>";return;}
+  try{
+    const doctor=await resolveLoggedInDoctor();doctorPortalState.doctor=doctor;
+    if(!doctor){
+      el.innerHTML=`<div class="panel"><h2>Doctor Portal</h2><p class="error">This login is not linked to a Doctor Master profile.</p><p>Hospital Admin should open <b>User Management</b> and link this account to the correct doctor.</p></div>`;
+      return;
+    }
+    const patients=await doctorPortalLoadPatients();
+    const today=todayISO();
+    const {data:todayNotes}=await db.from("doctor_daily_notes").select("id,ipd_admission_id").eq("doctor_id",doctor.id).gte("created_at",today+"T00:00:00").lte("created_at",today+"T23:59:59.999");
+    el.innerHTML=`
+      <div class="doctor-hero panel">
+        <div><span class="doctor-kicker">DOCTOR WORKSPACE</span><h2>${doctorPortalEscape(doctor.doctor_name)}</h2><p>${doctorPortalEscape(doctor.department||"")} · Assigned inpatient care</p></div>
+        <div class="doctor-hero-stat"><b>${patients.length}</b><span>Active patients</span></div>
+      </div>
+      <div class="doctor-metrics">
+        <div class="panel"><span>Assigned IPD Patients</span><strong>${patients.length}</strong></div>
+        <div class="panel"><span>Notes Added Today</span><strong>${(todayNotes||[]).length}</strong></div>
+        <div class="panel"><span>Clinical Workflow</span><strong>Daily Notes → Discharge</strong></div>
+      </div>
+      <div class="panel">
+        <div class="doctor-toolbar"><div><h3>My Admitted Patients</h3><p>Only admissions assigned to ${doctorPortalEscape(doctor.doctor_name)} are shown.</p></div><input id="doctorPatientFilter" placeholder="Search name, UHID, admission ID, bed..." oninput="filterDoctorPatients()"></div>
+        <div class="table-wrap"><table><thead><tr><th>Patient</th><th>Admission</th><th>Diagnosis</th><th>Ward / Bed</th><th>Since</th><th>Action</th></tr></thead><tbody id="doctorPatientRows">${doctorPatientRows(patients)}</tbody></table></div>
+      </div>`;
+  }catch(error){
+    el.innerHTML=`<div class="panel"><h2>Doctor Portal</h2><p class="error">${doctorPortalEscape(error.message)}</p><p>Run the included <b>doctor-portal-migration.sql</b> in Supabase SQL Editor, then reload.</p></div>`;
+  }
+}
+
+function doctorPatientRows(rows){
+  if(!rows.length)return "<tr><td colspan='6'>No active IPD patients are assigned to you.</td></tr>";
+  return rows.map(a=>`<tr>
+    <td><b>${doctorPortalEscape(a.patient_name||"Patient")}</b><br><small>${doctorPortalEscape(a.uhid||"")}</small></td>
+    <td>${doctorPortalEscape(a.admission_id||a.id||"")}</td>
+    <td>${doctorPortalEscape(a.diagnosis||"Not recorded")}</td>
+    <td>${doctorPortalEscape([a.ward_type,a.bed_no].filter(Boolean).join(" / ")||"-")}</td>
+    <td>${doctorPortalEscape(a.admission_date||rowDate(a)||"")}</td>
+    <td><button type="button" onclick="openDoctorPatient('${doctorPortalEscape(a.id)}')">Open Clinical Record</button></td>
+  </tr>`).join("");
+}
+function filterDoctorPatients(){const q=document.getElementById("doctorPatientFilter")?.value.toLowerCase().trim()||"";const rows=!q?doctorPortalState.patients:doctorPortalState.patients.filter(a=>[a.patient_name,a.uhid,a.admission_id,a.id,a.ward_type,a.bed_no,a.diagnosis].join(" ").toLowerCase().includes(q));document.getElementById("doctorPatientRows").innerHTML=doctorPatientRows(rows)}
+
+async function openDoctorPatient(id,tab="notes"){
+  const a=doctorPortalState.patients.find(x=>String(x.id)===String(id));if(!a)return;
+  doctorPortalState.selected=a;
+  const [noteResult,dischargeResult]=await Promise.all([
+    db.from("doctor_daily_notes").select("*").eq("ipd_admission_id",a.id).order("created_at",{ascending:false}),
+    db.from("doctor_discharge_summaries").select("*").eq("ipd_admission_id",a.id).maybeSingle()
+  ]);
+  if(noteResult.error){alert(noteResult.error.message);return}
+  if(dischargeResult.error){alert(dischargeResult.error.message);return}
+  doctorPortalState.notes=noteResult.data||[];doctorPortalState.discharge=dischargeResult.data||null;
+  document.getElementById("doctorPortalView").innerHTML=`
+    <div class="doctor-patient-header panel">
+      <div><button class="secondary doctor-back" type="button" onclick="renderDoctorPortal()">← My Patients</button><span class="doctor-kicker">${doctorPortalEscape(a.admission_id||a.id)}</span><h2>${doctorPortalEscape(a.patient_name||"Patient")}</h2><p>${doctorPortalEscape(a.diagnosis||"Diagnosis not recorded")}</p></div>
+      <button type="button" onclick="openDoctorPatient('${a.id}','discharge')">Prepare Discharge</button>
+    </div>
+    <div class="doctor-patient-meta panel">
+      <div><span>UHID</span><b>${doctorPortalEscape(a.uhid||"-")}</b></div><div><span>Age / Sex</span><b>${doctorPortalEscape(a.age||"-")} / ${doctorPortalEscape(a.sex||"-")}</b></div><div><span>Ward / Bed</span><b>${doctorPortalEscape([a.ward_type,a.bed_no].filter(Boolean).join(" / ")||"-")}</b></div><div><span>Admission</span><b>${doctorPortalEscape(a.admission_date||rowDate(a)||"-")}</b></div>
+    </div>
+    <div class="doctor-tabs"><button class="${tab==='notes'?'active':''}" onclick="openDoctorPatient('${a.id}','notes')">Daily Notes</button><button class="${tab==='discharge'?'active':''}" onclick="openDoctorPatient('${a.id}','discharge')">Discharge Summary</button></div>
+    ${tab==="discharge"?doctorDischargeForm(a,doctorPortalState.discharge):doctorNotesPanel(a,doctorPortalState.notes)}
+  `;
+}
+
+function doctorNotesPanel(a,notes){return `
+  <div class="doctor-record-grid">
+    <div class="panel"><h3>Progress Notes</h3>${notes.length?notes.map(n=>doctorNoteCard(n)).join(""):"<p>No daily note has been entered yet.</p>"}</div>
+    <div class="panel doctor-note-form"><h3>Add Daily Note</h3><p class="doctor-form-help">The date, time and doctor are recorded automatically.</p>
+      <div class="grid doctor-form-grid">
+        <div><label>General Condition</label><input id="dnCondition" placeholder="Stable / improving / critical"></div>
+        <div><label>Vitals</label><input id="dnVitals" placeholder="BP, pulse, SpO₂, temperature..."></div>
+        <div class="doctor-full"><label>Complaints / Symptoms</label><textarea id="dnComplaints" rows="3"></textarea></div>
+        <div class="doctor-full"><label>Examination / Clinical Findings</label><textarea id="dnFindings" rows="4"></textarea></div>
+        <div class="doctor-full"><label>Investigation Updates</label><textarea id="dnInvestigations" rows="3"></textarea></div>
+        <div class="doctor-full"><label>Assessment / Diagnosis</label><textarea id="dnAssessment" rows="3"></textarea></div>
+        <div class="doctor-full"><label>Treatment Changes / Orders</label><textarea id="dnTreatment" rows="3"></textarea></div>
+        <div class="doctor-full"><label>Plan / Advice</label><textarea id="dnPlan" rows="3"></textarea></div>
+      </div>
+      <div id="doctorNoteMessage"></div><button type="button" onclick="saveDoctorDailyNote('${a.id}')">Save Daily Note</button>
+    </div>
+  </div>`}
+function doctorNoteCard(n){return `<article class="doctor-note-card"><header><b>${doctorPortalDate(n.created_at)}</b><span>${doctorPortalEscape(n.doctor_name||"")}</span></header><div class="doctor-note-fields"><div><span>Condition</span>${doctorPortalEscape(n.general_condition||"-")}</div><div><span>Vitals</span>${doctorPortalEscape(n.vitals||"-")}</div><div><span>Complaints</span>${doctorPortalEscape(n.complaints||"-")}</div><div><span>Findings</span>${doctorPortalEscape(n.findings||"-")}</div><div><span>Investigations</span>${doctorPortalEscape(n.investigations||"-")}</div><div><span>Assessment</span>${doctorPortalEscape(n.assessment||"-")}</div><div><span>Treatment</span>${doctorPortalEscape(n.treatment_changes||"-")}</div><div><span>Plan</span>${doctorPortalEscape(n.plan||"-")}</div></div></article>`}
+
+async function saveDoctorDailyNote(admissionId){
+  const a=doctorPortalState.selected,d=doctorPortalState.doctor;if(!a||!d)return;
+  const payload={ipd_admission_id:a.id,admission_id:a.admission_id||String(a.id),uhid:a.uhid||null,patient_name:a.patient_name||null,doctor_id:d.id,doctor_name:d.doctor_name,created_by_user_id:currentUser?.id||null,general_condition:document.getElementById("dnCondition").value.trim(),vitals:document.getElementById("dnVitals").value.trim(),complaints:document.getElementById("dnComplaints").value.trim(),findings:document.getElementById("dnFindings").value.trim(),investigations:document.getElementById("dnInvestigations").value.trim(),assessment:document.getElementById("dnAssessment").value.trim(),treatment_changes:document.getElementById("dnTreatment").value.trim(),plan:document.getElementById("dnPlan").value.trim()};
+  if(!payload.general_condition&&!payload.complaints&&!payload.findings&&!payload.assessment&&!payload.plan){doctorPortalMsg("doctorNoteMessage","Enter at least one clinical note field.","error");return}
+  const {error}=await db.from("doctor_daily_notes").insert([payload]);if(error){doctorPortalMsg("doctorNoteMessage",error.message,"error");return}doctorPortalMsg("doctorNoteMessage","Daily note saved.");await openDoctorPatient(admissionId,"notes")
+}
+
+function dischargeValue(d,key,fallback=""){return doctorPortalEscape(d?.[key]??fallback)}
+function doctorDischargeForm(a,d){const locked=d?.status==="Finalized";const last=doctorPortalState.notes[0]||{};return `
+  <div class="panel doctor-discharge-card">
+    <div class="doctor-discharge-title"><div><span class="doctor-kicker">CLINICAL DISCHARGE</span><h3>Discharge Summary</h3><p>Saving/finalizing this clinical summary does not close financial IPD billing.</p></div>${d?`<span class="doctor-status ${locked?'finalized':'draft'}">${doctorPortalEscape(d.status||"Draft")}</span>`:""}</div>
+    <div class="grid doctor-form-grid">
+      ${doctorDischargeField("Final Diagnosis","finalDiagnosis",dischargeValue(d,"final_diagnosis",a.diagnosis||""),locked,true)}
+      ${doctorDischargeField("Presenting Complaints / History","history",dischargeValue(d,"presenting_history",""),locked,true,true)}
+      ${doctorDischargeField("Relevant Examination Findings","findings",dischargeValue(d,"examination_findings",last.findings||""),locked,true,true)}
+      ${doctorDischargeField("Important Investigations","investigations",dischargeValue(d,"important_investigations",last.investigations||""),locked,true,true)}
+      ${doctorDischargeField("Hospital Course","course",dischargeValue(d,"hospital_course",""),locked,true,true)}
+      ${doctorDischargeField("Surgery / Procedure Performed","procedure",dischargeValue(d,"procedure_performed",""),locked,true,true)}
+      ${doctorDischargeField("Treatment Given","treatment",dischargeValue(d,"treatment_given",last.treatment_changes||""),locked,true,true)}
+      ${doctorDischargeField("Condition at Discharge","condition",dischargeValue(d,"condition_at_discharge","Stable"),locked,false)}
+      ${doctorDischargeField("Discharge Medicines — drug, dose, frequency, duration","medicines",dischargeValue(d,"discharge_medicines",""),locked,true,true)}
+      ${doctorDischargeField("Diet / Activity Advice","advice",dischargeValue(d,"diet_activity_advice",""),locked,true,true)}
+      ${doctorDischargeField("Wound / Dressing Advice","wound",dischargeValue(d,"wound_dressing_advice",""),locked,true,true)}
+      ${doctorDischargeField("Follow-up","followup",dischargeValue(d,"follow_up",""),locked,false)}
+      ${doctorDischargeField("Warning Signs / When to Return","warning",dischargeValue(d,"warning_signs",""),locked,true,true)}
+    </div>
+    <div id="doctorDischargeMessage"></div>
+    <div class="doctor-discharge-actions">${locked?`<button type="button" onclick="printDoctorDischarge()">Print / Save PDF</button>`:`<button class="secondary" type="button" onclick="saveDoctorDischarge('Draft')">Save Draft</button><button type="button" onclick="saveDoctorDischarge('Finalized')">Finalize Clinical Discharge</button>`}</div>
+  </div>`}
+function doctorDischargeField(label,id,value,locked,full=false,area=false){return `<div class="${full?'doctor-full':''}"><label>${label}</label>${area?`<textarea id="dd${id}" rows="3" ${locked?'disabled':''}>${value}</textarea>`:`<input id="dd${id}" value="${value}" ${locked?'disabled':''}>`}</div>`}
+async function saveDoctorDischarge(status){
+  const a=doctorPortalState.selected,d=doctorPortalState.doctor;if(!a||!d)return;
+  const v=id=>document.getElementById("dd"+id)?.value.trim()||"";
+  if(status==="Finalized"&&!confirm("Finalize this clinical discharge summary? It will become read-only."))return;
+  const payload={ipd_admission_id:a.id,admission_id:a.admission_id||String(a.id),uhid:a.uhid||null,patient_name:a.patient_name||null,doctor_id:d.id,doctor_name:d.doctor_name,created_by_user_id:currentUser?.id||null,status,final_diagnosis:v("finalDiagnosis"),presenting_history:v("history"),examination_findings:v("findings"),important_investigations:v("investigations"),hospital_course:v("course"),procedure_performed:v("procedure"),treatment_given:v("treatment"),condition_at_discharge:v("condition"),discharge_medicines:v("medicines"),diet_activity_advice:v("advice"),wound_dressing_advice:v("wound"),follow_up:v("followup"),warning_signs:v("warning"),updated_at:new Date().toISOString(),finalized_at:status==="Finalized"?new Date().toISOString():null};
+  const existing=doctorPortalState.discharge;let result;if(existing?.id)result=await db.from("doctor_discharge_summaries").update(payload).eq("id",existing.id);else result=await db.from("doctor_discharge_summaries").insert([{...payload,created_at:new Date().toISOString()}]);
+  if(result.error){doctorPortalMsg("doctorDischargeMessage",result.error.message,"error");return}await openDoctorPatient(a.id,"discharge");
+}
+
+function printDoctorDischarge(){
+  const a=doctorPortalState.selected,d=doctorPortalState.discharge;if(!a||!d)return;
+  const line=(label,value)=>value?`<div class="print-row"><b>${label}</b><div>${doctorPortalEscape(value).replace(/\n/g,"<br>")}</div></div>`:"";
+  const w=window.open("","_blank","width=900,height=900");
+  w.document.write(`<!doctype html><html><head><title>Discharge Summary - ${doctorPortalEscape(a.patient_name)}</title><style>body{font-family:Arial,sans-serif;color:#111;padding:28px;line-height:1.4}.head{text-align:center;border-bottom:2px solid #087f7a;padding-bottom:12px}.head h1{color:#087f7a;margin:0}.meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:18px 0}.meta div{border:1px solid #ddd;padding:8px}.print-row{margin:14px 0}.print-row b{display:block;color:#075e5b;margin-bottom:4px}.sign{margin-top:42px;text-align:right}@media print{button{display:none}}</style></head><body><div class="head"><h1>REVIVE HOSPITAL</h1><b>DISCHARGE SUMMARY</b></div><div class="meta"><div><b>Patient:</b> ${doctorPortalEscape(a.patient_name||"")}</div><div><b>UHID:</b> ${doctorPortalEscape(a.uhid||"")}</div><div><b>IPD:</b> ${doctorPortalEscape(a.admission_id||a.id||"")}</div><div><b>Age / Sex:</b> ${doctorPortalEscape(a.age||"")} / ${doctorPortalEscape(a.sex||"")}</div><div><b>Admission:</b> ${doctorPortalEscape(a.admission_date||"")}</div><div><b>Ward / Bed:</b> ${doctorPortalEscape([a.ward_type,a.bed_no].filter(Boolean).join(" / "))}</div></div>${line("Final Diagnosis",d.final_diagnosis)}${line("Presenting Complaints / History",d.presenting_history)}${line("Relevant Examination Findings",d.examination_findings)}${line("Important Investigations",d.important_investigations)}${line("Hospital Course",d.hospital_course)}${line("Surgery / Procedure",d.procedure_performed)}${line("Treatment Given",d.treatment_given)}${line("Condition at Discharge",d.condition_at_discharge)}${line("Discharge Medicines",d.discharge_medicines)}${line("Diet / Activity Advice",d.diet_activity_advice)}${line("Wound / Dressing Advice",d.wound_dressing_advice)}${line("Follow-up",d.follow_up)}${line("Warning Signs",d.warning_signs)}<div class="sign"><b>${doctorPortalEscape(d.doctor_name||doctorPortalState.doctor?.doctor_name||"")}</b><br>Consultant</div><button onclick="window.print()">Print / Save PDF</button></body></html>`);w.document.close();
+}
