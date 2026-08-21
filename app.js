@@ -6,7 +6,7 @@ function navForRole(role){if(role==="owner")return ["dashboard","patientSearch",
 function buildNav(){const nav=document.getElementById("mainNav");nav.innerHTML="";navForRole(currentUser.role).forEach(k=>{const b=document.createElement("button");b.textContent=VIEWS[k].title;b.dataset.view=k;b.onclick=()=>navigate(k);nav.appendChild(b)})}
 function showApp(){document.getElementById("landingPage")?.classList.add("hidden");document.getElementById("loginPage").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");document.getElementById("roleBadge").textContent=ROLE_LABELS[currentUser.role]||currentUser.name||"User";buildNav();navigate(navForRole(currentUser.role)[0]||"dashboard")}
 function loadScriptOnce(src){return new Promise((resolve,reject)=>{if(document.querySelector(`script[src="${src}"]`)){resolve();return}const s=document.createElement("script");s.src=src;s.onload=resolve;s.onerror=reject;document.body.appendChild(s)})}
-async function openDoctorPortal(){await loadScriptOnce("doctor-portal.js");return renderDoctorPortal()}
+async function openDoctorPortal(){await loadScriptOnce("doctor-portal.js");await loadScriptOnce("doctor-vitals.js");return renderDoctorPortal()}
 async function openPharmacyBilling(){await loadScriptOnce("pharmacy-billing.js");return renderPharmacyBilling()}
 async function openPurchaseReturns(){await loadScriptOnce("purchase-returns.js");return renderPurchaseReturns()}
 async function openCashBook(){await loadScriptOnce("cash-book.js");return renderCashBook()}
