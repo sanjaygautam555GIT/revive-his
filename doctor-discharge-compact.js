@@ -21,10 +21,11 @@
     @media(max-width:700px){.doctor-final-patient{grid-template-columns:1fr 1fr}.doctor-final-grid{grid-template-columns:1fr}.doctor-final-section.full{grid-column:auto}}
     @media print{
       @page{size:A4 portrait;margin:7mm}
-      body.doctor-compact-print *{visibility:hidden!important}
-      body.doctor-compact-print #doctorCompactPrint,
+      html,body{height:auto!important;min-height:0!important;overflow:visible!important}
+      body.doctor-compact-print{margin:0!important;padding:0!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}
+      body.doctor-compact-print > *:not(#doctorCompactPrint){display:none!important}
+      body.doctor-compact-print #doctorCompactPrint{display:block!important;position:static!important;left:auto!important;top:auto!important;width:auto!important;max-width:none!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;font-family:Arial,sans-serif;color:#111;font-size:9px;line-height:1.18;page-break-before:avoid!important;page-break-after:avoid!important;break-before:avoid-page!important;break-after:avoid-page!important}
       body.doctor-compact-print #doctorCompactPrint *{visibility:visible!important}
-      body.doctor-compact-print #doctorCompactPrint{display:block!important;position:absolute;left:0;top:0;width:100%;font-family:Arial,sans-serif;color:#111;font-size:9px;line-height:1.18}
       body.doctor-compact-print #doctorCompactPrint .p-head{text-align:center;border-bottom:1.5px solid #111;padding-bottom:4px;margin-bottom:5px}
       body.doctor-compact-print #doctorCompactPrint .p-head h1{font-size:15px;margin:0}.p-head h2{font-size:11px;margin:2px 0 0}
       body.doctor-compact-print #doctorCompactPrint .p-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 8px;border-bottom:1px solid #777;padding-bottom:4px;margin-bottom:5px}
@@ -33,7 +34,7 @@
       body.doctor-compact-print #doctorCompactPrint .p-section{break-inside:avoid;border-bottom:1px solid #ddd;padding:2px 0;white-space:pre-wrap}
       body.doctor-compact-print #doctorCompactPrint .p-section.full{grid-column:1/-1}
       body.doctor-compact-print #doctorCompactPrint .p-section b{display:block;font-size:8px;text-transform:uppercase;margin-bottom:1px}
-      body.doctor-compact-print #doctorCompactPrint .p-footer{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #777;margin-top:5px;padding-top:4px}
+      body.doctor-compact-print #doctorCompactPrint .p-footer{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #777;margin-top:5px;padding-top:4px;page-break-after:avoid!important;break-after:avoid-page!important}
     }
   `;
   document.head.appendChild(style);
@@ -111,6 +112,6 @@
     document.body.classList.add("doctor-compact-print");
     const cleanup=()=>{document.body.classList.remove("doctor-compact-print");print.remove();window.removeEventListener("afterprint",cleanup)};
     window.addEventListener("afterprint",cleanup);
-    setTimeout(()=>window.print(),50);
+    setTimeout(()=>window.print(),80);
   };
 })();
