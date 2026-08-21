@@ -32,7 +32,7 @@ loginForm.addEventListener("submit",async e=>{
   e.preventDefault();loginError.textContent="";sendOtpBtn.disabled=true;sendOtpBtn.textContent="Sending OTP...";
   try{const result=await ReviveOtpAuth.requestOtp(document.getElementById("username").value,document.getElementById("password").value);credentialStep.classList.add("hidden");otpStep.classList.remove("hidden");document.getElementById("loginOtp").required=true;loginHelp.textContent=`Approval code sent to ${result.emailHint||"the configured email"}.`;document.getElementById("loginOtp").focus()}
   catch(err){loginError.textContent=err.message}
-  finally{sendOtpBtn.disabled=false;sendOtpBtn.textContent="Sending OTP"}
+  finally{sendOtpBtn.disabled=false;sendOtpBtn.textContent="Send OTP"}
 });
 verifyOtpBtn.addEventListener("click",async()=>{loginError.textContent="";verifyOtpBtn.disabled=true;verifyOtpBtn.textContent="Verifying...";try{await ReviveOtpAuth.verifyOtp(document.getElementById("loginOtp").value);showApp()}catch(err){loginError.textContent=err.message}finally{verifyOtpBtn.disabled=false;verifyOtpBtn.textContent="Verify & Login"}});
 document.getElementById("backToLoginBtn").addEventListener("click",()=>{ReviveOtpAuth.cancel();otpStep.classList.add("hidden");credentialStep.classList.remove("hidden");document.getElementById("loginOtp").required=false;document.getElementById("loginOtp").value="";loginError.textContent="";loginHelp.textContent="Enter your credentials to receive an email approval code."});
