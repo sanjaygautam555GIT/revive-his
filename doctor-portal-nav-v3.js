@@ -10,6 +10,7 @@
     await loadScriptOnce('doctor-vitals.js');
     await loadScriptOnce('doctor-intraop.js');
     window.applyIntraopDischargePatches?.();
+    installActionFixes();
   }
   function view(id){return document.getElementById(id)}
   function proc(a,d){return d?.procedure_performed||a?.procedure_name||a?.procedure||'Conservative'}
@@ -47,7 +48,46 @@
   function rowsAdmitted(rows){if(!rows.length)return '<tr><td colspan="7">No currently admitted patients.</td></tr>';return rows.map(a=>{const d=dischargeFor(a);return `<tr><td><b>${esc(a.bed_no||'-')}</b></td><td><b>${esc(a.patient_name||'')}</b><br><small>${esc(a.uhid||'')}</small></td><td>${esc(a.diagnosis||'-')}</td><td>${esc(proc(a,d))}</td><td>${dOnly(a.admission_date||a.created_at)}</td><td>${dOnly(sDate(a,d))}</td><td><div class="doctor-row-actions"><button onclick="window.openDoctorRecordV3('${a.id}','notes')">Daily Notes</button><button class="secondary" onclick="window.openDoctorRecordV3('${a.id}','discharge')">Prepare Discharge</button></div></td></tr>`}).join('')}
   window.filterDoctorAdmittedV3=function(){const q=(document.getElementById('doctorAdmSearch')?.value||'').toLowerCase().trim();const r=!q?state.active:state.active.filter(a=>[a.patient_name,a.uhid,a.bed_no,a.diagnosis,proc(a,dischargeFor(a))].join(' ').toLowerCase().includes(q));document.getElementById('doctorAdmRows').innerHTML=rowsAdmitted(r)};
 
-  window.openDoctorRecordV3=async function(id,tab){await assets();if(window.doctorPortalState){doctorPortalState.patients=state.active;doctorPortalState.doctor=state.doctor;}await openDoctorPatient(id,tab);const src=document.getElementById('doctorPortalView'),dst=document.getElementById('currentlyAdmittedView');if(src&&dst){dst.innerHTML=src.innerHTML;src.innerHTML='';}};
+  window.openDoctorRecordV3=async function(id,tab='notes'){
+    const el=view('currentlyAdmittedView');
+    try{
+      await assets();
+      if(!state.doctor||!state.active.length)await load();
+      const a=state.active.find(x=>String(x.id)===String(id));
+      if(!a)throw new Error('Patient record not found in currently admitted list.');
+      const [noteResult,dischargeResult]=await Promise.all([
+        db.from('doctor_daily_notes').select('*').eq('ipd_admission_id',a.id).order('created_at',{ascending:false}),
+        db.from('doctor_discharge_summaries').select('*').eq('ipd_admission_id',a.id).order('updated_at',{ascending:false}).limit(1)
+      ]);
+      if(noteResult.error)throw noteResult.error;
+      if(dischargeResult.error)throw dischargeResult.error;
+      const notes=noteResult.data||[];
+      const discharge=(dischargeResult.data||[])[0]||null;
+      doctorPortalState.doctor=state.doctor;
+      doctorPortalState.patients=state.active;
+      doctorPortalState.selected=a;
+      doctorPortalState.notes=notes;
+      doctorPortalState.discharge=discharge;
+      el.innerHTML=`<div class="doctor-patient-header panel"><div><button class="secondary doctor-back" type="button" onclick="navigate('currentlyAdmitted')">← Currently Admitted</button><h2>${esc(a.patient_name||'Patient')}</h2><p>${esc(a.diagnosis||'Diagnosis not recorded')}</p></div><button type="button" onclick="window.openDoctorRecordV3('${a.id}','discharge')">Prepare Discharge</button></div><div class="doctor-patient-meta panel"><div><span>UHID</span><b>${esc(a.uhid||'-')}</b></div><div><span>Age / Sex</span><b>${esc(a.age||'-')} / ${esc(a.sex||'-')}</b></div><div><span>Ward / Bed</span><b>${esc([a.ward_type,a.bed_no].filter(Boolean).join(' / ')||'-')}</b></div><div><span>Admission</span><b>${esc(a.admission_date||rowDate(a)||'-')}</b></div></div><div class="doctor-tabs"><button class="${tab==='notes'?'active':''}" onclick="window.openDoctorRecordV3('${a.id}','notes')">Daily Notes</button><button class="${tab==='discharge'?'active':''}" onclick="window.openDoctorRecordV3('${a.id}','discharge')">Discharge Summary</button></div>${tab==='discharge'?doctorDischargeForm(a,discharge):doctorNotesPanel(a,notes)}`;
+    }catch(e){el.innerHTML=`<div class="panel"><button class="secondary" onclick="navigate('currentlyAdmitted')">← Currently Admitted</button><p class="error">${esc(e.message)}</p></div>`}
+  };
+
+  function installActionFixes(){
+    window.saveDoctorDailyNote=async function(admissionId){
+      const a=doctorPortalState.selected,d=doctorPortalState.doctor;if(!a||!d)return;
+      const payload={ipd_admission_id:a.id,admission_id:a.admission_id||String(a.id),uhid:a.uhid||null,patient_name:a.patient_name||null,doctor_id:d.id,doctor_name:d.doctor_name,created_by_user_id:currentUser?.id||null,general_condition:document.getElementById('dnCondition')?.value.trim()||'',vitals:document.getElementById('dnVitals')?.value.trim()||'',complaints:document.getElementById('dnComplaints')?.value.trim()||'',findings:document.getElementById('dnFindings')?.value.trim()||'',investigations:document.getElementById('dnInvestigations')?.value.trim()||'',assessment:document.getElementById('dnAssessment')?.value.trim()||'',treatment_changes:document.getElementById('dnTreatment')?.value.trim()||'',plan:document.getElementById('dnPlan')?.value.trim()||''};
+      if(!payload.general_condition&&!payload.complaints&&!payload.findings&&!payload.assessment&&!payload.plan){doctorPortalMsg('doctorNoteMessage','Enter at least one clinical note field.','error');return}
+      const {error}=await db.from('doctor_daily_notes').insert([payload]);if(error){doctorPortalMsg('doctorNoteMessage',error.message,'error');return}
+      await window.openDoctorRecordV3(admissionId,'notes');
+    };
+    window.saveDoctorDischarge=async function(status){
+      const a=doctorPortalState.selected,d=doctorPortalState.doctor;if(!a||!d)return;
+      const v=id=>document.getElementById('dd_'+id)?.value.trim()||'';
+      const payload={ipd_admission_id:a.id,admission_id:a.admission_id||String(a.id),uhid:a.uhid||null,patient_name:a.patient_name||null,doctor_id:d.id,doctor_name:d.doctor_name,created_by_user_id:currentUser?.id||null,status,final_diagnosis:v('finalDiagnosis'),presenting_history:v('history'),examination_findings:v('findings'),important_investigations:v('investigations'),hospital_course:v('course'),procedure_performed:v('procedure'),treatment_given:v('treatment'),condition_at_discharge:v('condition'),discharge_medicines:v('medicines'),diet_activity_advice:v('advice'),wound_dressing_advice:v('wound'),follow_up:v('followup'),warning_signs:v('warning'),updated_at:new Date().toISOString(),finalized_at:status==='Finalized'?new Date().toISOString():null};
+      const {error}=await db.from('doctor_discharge_summaries').upsert(payload,{onConflict:'ipd_admission_id'});if(error){doctorPortalMsg('doctorDischargeMessage',error.message,'error');return}
+      await window.openDoctorRecordV3(a.id,'discharge');
+    };
+  }
 
   async function search(){
     const el=view('doctorPatientSearchView');
