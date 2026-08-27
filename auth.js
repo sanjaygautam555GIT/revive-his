@@ -1,5 +1,5 @@
 const ROLE_LABELS={owner:"Hospital Admin",staff:"Hospital Staff",pharmacyOwner:"Pharmacy Admin",pharmacy:"Pharmacy Staff",accountant:"Accountant",doctor:"Doctor"};
-const NAV_BY_ROLE={owner:["dashboard","patientSearch","cashReport","reports"],staff:["dashboard","opd","ipd","patientSearch"],pharmacyOwner:["pharmacyStock","purchaseRegister"],pharmacy:["pharmacyBilling"],accountant:["dashboard","expenses","purchaseRegister","cashReport","reports"],doctor:["doctorPortal"]};
+const NAV_BY_ROLE={owner:["dashboard","patientSearch","cashReport","reports"],staff:["dashboard","opd","ipd","patientSearch"],pharmacyOwner:["pharmacyStock","purchaseRegister"],pharmacy:["pharmacyBilling"],accountant:["dashboard","expenses","purchaseRegister","cashReport","reports"],doctor:["doctorDashboard","currentlyAdmitted","doctorPatientSearch"]};
 let currentUser=null;
 
 const ReviveOtpAuth=(()=>{
