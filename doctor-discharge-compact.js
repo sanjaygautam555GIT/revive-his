@@ -30,19 +30,26 @@
     if(!w){alert('Please allow pop-ups for printing.');return}
     w.document.open();
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Discharge Summary</title><style>
-      @page{margin:7mm}
+      @page{size:A4 portrait;margin:10mm 11mm 11mm}
+      *{box-sizing:border-box}
       html,body{margin:0;padding:0;background:#fff;height:auto;min-height:0}
-      body{font-family:Arial,sans-serif;color:#111;font-size:9px;line-height:1.16}
-      .sheet{display:block;width:auto;margin:0;padding:0;page-break-after:avoid;break-after:avoid-page}
-      .p-head{text-align:center;border-bottom:1.5px solid #111;padding-bottom:4px;margin-bottom:5px}
-      .p-head h1{font-size:15px;margin:0}.p-head h2{font-size:11px;margin:2px 0 0}
-      .p-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 8px;border-bottom:1px solid #777;padding-bottom:4px;margin-bottom:5px}
-      .p-meta b{display:block;font-size:8px;text-transform:uppercase;color:#444;margin-bottom:1px}
-      .p-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px}
-      .p-section{break-inside:avoid;page-break-inside:avoid;border-bottom:1px solid #ddd;padding:2px 0;white-space:pre-wrap}
-      .p-section.full{grid-column:1/-1}.p-section b{display:block;font-size:8px;text-transform:uppercase;margin-bottom:1px}
-      .p-footer{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #777;margin-top:5px;padding-top:4px;page-break-after:avoid;break-after:avoid-page}
-      @media print{html,body,.sheet{height:auto!important;min-height:0!important;overflow:visible!important}}
+      body{font-family:Arial,Helvetica,sans-serif;color:#151515;font-size:11pt;line-height:1.34}
+      .sheet{display:block;width:100%;margin:0;padding:0;page-break-after:avoid;break-after:avoid-page}
+      .p-head{text-align:center;border-bottom:2.2px solid #111;padding:2mm 0 3mm;margin-bottom:3mm}
+      .p-head h1{font-size:20pt;line-height:1.05;letter-spacing:.4px;margin:0;font-weight:800}
+      .p-head h2{font-size:13pt;line-height:1.1;letter-spacing:.8px;margin:1.5mm 0 0;font-weight:700}
+      .p-meta{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #aeb4ba;border-radius:2mm;overflow:hidden;margin-bottom:3.5mm}
+      .p-meta>div{min-height:14mm;padding:2.3mm 2.5mm;border-right:1px solid #d3d6da;border-bottom:1px solid #d3d6da}
+      .p-meta>div:nth-child(4n){border-right:0}
+      .p-meta>div:nth-last-child(-n+4){border-bottom:0}
+      .p-meta b{display:block;font-size:8.5pt;line-height:1.05;text-transform:uppercase;letter-spacing:.25px;color:#4b5055;margin-bottom:1.2mm}
+      .p-grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm}
+      .p-section{break-inside:avoid;page-break-inside:avoid;border:1px solid #c8ccd0;border-radius:1.7mm;padding:2.5mm 3mm;min-height:17mm;white-space:pre-wrap;background:#fff}
+      .p-section.full{grid-column:1/-1;min-height:16mm}
+      .p-section b{display:block;font-size:9pt;line-height:1.05;text-transform:uppercase;letter-spacing:.3px;margin:-2.5mm -3mm 2mm;padding:1.7mm 3mm;background:#f0f1f2;border-bottom:1px solid #c8ccd0}
+      .p-footer{display:flex;justify-content:space-between;align-items:flex-end;gap:10mm;border-top:1.5px solid #555;margin-top:5mm;padding-top:3mm;font-size:10pt;page-break-after:avoid;break-after:avoid-page}
+      .p-footer>div:first-child{min-width:65mm;padding-top:5mm}
+      @media print{html,body,.sheet{height:auto!important;min-height:0!important;overflow:visible!important}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     </style></head><body><div class="sheet">${content}</div><script>window.onload=function(){setTimeout(function(){window.print()},120)};<\/script></body></html>`);
     w.document.close();
   }
