@@ -24,23 +24,23 @@
     if(!w){alert('Please allow pop-ups to print the discharge summary.');return;}
     w.document.open();
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Discharge Summary</title><style>
-      @page{size:A4 portrait;margin:8mm}
+      @page{size:A4 portrait;margin:5mm 6mm}
       *{box-sizing:border-box}
       html,body{margin:0;padding:0;background:#fff}
-      body{font-family:Arial,Helvetica,sans-serif;color:#172033;font-size:10.5pt;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-      .sheet{width:100%;max-width:194mm;margin:0 auto}
-      .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #123f89;padding:0 1mm 4mm;margin-bottom:4mm}
-      .brand{display:flex;gap:3mm;align-items:center}.brand-mark{width:13mm;height:13mm;border:2px solid #123f89;border-radius:3mm;display:grid;place-items:center;color:#123f89;font-size:20pt;font-weight:900}
-      .brand h1{margin:0;color:#123f89;font-size:20pt;line-height:1}.brand p{margin:1.5mm 0 0;color:#27569b;font-size:9.5pt}.contact{text-align:right;font-size:8.5pt;line-height:1.45;color:#26344e}
-      .title{text-align:center;color:#132d68;font-size:22pt;font-weight:800;letter-spacing:.5px;margin:3mm 0 4mm}
-      .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1.5px solid #3f76c5;border-radius:3mm;overflow:hidden;margin-bottom:4mm;background:#f8fbff}
-      .meta-item{display:flex;gap:2.3mm;align-items:center;min-height:16mm;padding:2.5mm;border-right:1px dotted #78a1d8;border-bottom:1px dotted #78a1d8}.meta-item:nth-child(4n){border-right:0}.meta-item:nth-last-child(-n+4){border-bottom:0}.meta-icon{font-size:15pt;color:#124185}.meta-item b{display:block;color:#254a84;font-size:7.7pt;letter-spacing:.25px}.meta-item strong{display:block;color:#101828;font-size:10pt;margin-top:.6mm}
-      .diagnosis{border:1.5px solid #3f76c5;background:#edf5ff;border-radius:3mm;padding:3mm 4mm;margin-bottom:3.5mm}.diagnosis h3{margin:0;color:#163d7a;font-size:10pt}.diagnosis div{font-size:13.5pt;font-weight:700;margin-top:1mm;color:#111827}
-      .grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:3mm}.card{display:grid;grid-template-columns:10mm 1fr;gap:2.5mm;border:1px solid #6d98d7;border-radius:3mm;padding:3mm;min-height:18mm;break-inside:avoid;background:#fff}.card.wide{grid-column:1/-1}.card-icon{font-size:17pt;color:#153f7f;line-height:1}.card h3{margin:0 0 1.2mm;color:#1d4d91;font-size:9pt}.card-text{white-space:pre-wrap;color:#1b2433;font-size:10pt}.card.green{border-color:#64a88b}.card.green h3,.card.green .card-icon{color:#157052}.card.red{border-color:#e08a8a}.card.red h3,.card.red .card-icon{color:#c62828}
-      .med-card{border:1.5px solid #4275bd;border-radius:3mm;overflow:hidden;margin:3mm 0;break-inside:avoid}.med-card h3{margin:0;padding:2.2mm 3mm;color:#163f80;font-size:9.5pt;background:#f3f8ff}.med-card table{width:100%;border-collapse:collapse;font-size:9pt}.med-card th{background:#123f89;color:#fff;padding:2mm;border-right:1px solid #7e9fc8}.med-card td{padding:1.9mm 2mm;border-top:1px solid #b9cbe4;border-right:1px solid #b9cbe4}.med-card th:last-child,.med-card td:last-child{border-right:0}
-      .bottom{display:grid;grid-template-columns:1fr 1fr;gap:4mm;border:1.3px solid #6b92ca;border-radius:3mm;padding:3.5mm;margin-top:4mm;break-inside:avoid}.consultant b{display:block;color:#214d8b;font-size:8pt}.consultant strong{display:block;font-size:12pt;margin:1mm 0}.sig{margin-top:7mm;border-bottom:1px solid #444;width:55mm;height:8mm}.discharge-meta{font-size:9.5pt;line-height:1.55}.wish{text-align:center;margin-top:4mm;font-style:italic;color:#3a465c}
-      .footer{margin-top:3mm;background:#123f89;color:#fff;text-align:center;padding:2.2mm;border-radius:1.5mm;font-size:9pt;letter-spacing:.2px}
-      @media print{body{zoom:1}.sheet{page-break-after:avoid}}
+      body{font-family:Arial,Helvetica,sans-serif;color:#172033;font-size:9.2pt;line-height:1.18;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      .sheet{width:100%;max-width:198mm;margin:0 auto;transform-origin:top left}
+      .top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.3px solid #123f89;padding:0 .5mm 2mm;margin-bottom:2mm}
+      .brand{display:flex;gap:2mm;align-items:center}.brand-mark{width:10mm;height:10mm;border:1.8px solid #123f89;border-radius:2mm;display:grid;place-items:center;color:#123f89;font-size:15pt;font-weight:900}
+      .brand h1{margin:0;color:#123f89;font-size:17pt;line-height:1}.brand p{margin:.8mm 0 0;color:#27569b;font-size:7.8pt}.contact{text-align:right;font-size:7.2pt;line-height:1.25;color:#26344e}
+      .title{text-align:center;color:#132d68;font-size:18pt;font-weight:800;letter-spacing:.3px;margin:1.6mm 0 2.2mm}
+      .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1.2px solid #3f76c5;border-radius:2mm;overflow:hidden;margin-bottom:2.2mm;background:#f8fbff}
+      .meta-item{display:flex;gap:1.4mm;align-items:center;min-height:11.5mm;padding:1.4mm 1.6mm;border-right:1px dotted #78a1d8;border-bottom:1px dotted #78a1d8}.meta-item:nth-child(4n){border-right:0}.meta-item:nth-last-child(-n+4){border-bottom:0}.meta-icon{font-size:11pt;color:#124185}.meta-item b{display:block;color:#254a84;font-size:6.6pt;letter-spacing:.15px}.meta-item strong{display:block;color:#101828;font-size:8.3pt;margin-top:.2mm}
+      .diagnosis{border:1.2px solid #3f76c5;background:#edf5ff;border-radius:2mm;padding:1.8mm 2.4mm;margin-bottom:2mm}.diagnosis h3{margin:0;color:#163d7a;font-size:8pt}.diagnosis div{font-size:11pt;font-weight:700;margin-top:.5mm;color:#111827}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:1.7mm;margin-bottom:1.7mm}.card{display:grid;grid-template-columns:7mm 1fr;gap:1.3mm;border:1px solid #6d98d7;border-radius:2mm;padding:1.6mm 1.8mm;min-height:12.5mm;break-inside:avoid;background:#fff}.card.wide{grid-column:1/-1}.card-icon{font-size:12pt;color:#153f7f;line-height:1}.card h3{margin:0 0 .5mm;color:#1d4d91;font-size:7.5pt}.card-text{white-space:pre-wrap;color:#1b2433;font-size:8.7pt;line-height:1.17}.card.green{border-color:#64a88b}.card.green h3,.card.green .card-icon{color:#157052}.card.red{border-color:#e08a8a}.card.red h3,.card.red .card-icon{color:#c62828}
+      .med-card{border:1.2px solid #4275bd;border-radius:2mm;overflow:hidden;margin:1.7mm 0;break-inside:avoid}.med-card h3{margin:0;padding:1.3mm 2mm;color:#163f80;font-size:8pt;background:#f3f8ff}.med-card table{width:100%;border-collapse:collapse;font-size:7.9pt}.med-card th{background:#123f89;color:#fff;padding:1.1mm;border-right:1px solid #7e9fc8}.med-card td{padding:1mm 1.3mm;border-top:1px solid #b9cbe4;border-right:1px solid #b9cbe4;line-height:1.15}.med-card th:last-child,.med-card td:last-child{border-right:0}
+      .bottom{display:grid;grid-template-columns:1fr 1fr;gap:2.5mm;border:1.1px solid #6b92ca;border-radius:2mm;padding:2mm;margin-top:2mm;break-inside:avoid}.consultant b{display:block;color:#214d8b;font-size:7pt}.consultant strong{display:block;font-size:10pt;margin:.5mm 0}.consultant>div:not(.sig){font-size:8pt}.sig{margin-top:3mm;border-bottom:1px solid #444;width:48mm;height:4mm}.consultant small{font-size:6.5pt}.discharge-meta{font-size:8pt;line-height:1.3}.wish{text-align:center;margin-top:1.8mm;font-style:italic;color:#3a465c;font-size:7.5pt}
+      .footer{margin-top:1.7mm;background:#123f89;color:#fff;text-align:center;padding:1.3mm;border-radius:1mm;font-size:7.8pt;letter-spacing:.1px}
+      @media print{html,body{width:210mm;height:297mm;overflow:hidden}.sheet{page-break-after:avoid;break-after:avoid-page}}
     </style></head><body><div class="sheet">
       <div class="top"><div class="brand"><div class="brand-mark">✚</div><div><h1>REVIVE HOSPITAL</h1><p>Compassionate Care. Better Health.</p></div></div><div class="contact">Revive HealthScope<br>Hospital Discharge Record</div></div>
       <div class="title">DISCHARGE SUMMARY</div>
@@ -68,7 +68,7 @@
       </div>
       <div class="bottom"><div class="consultant"><b>CONSULTANT</b><strong>${esc(doctor)}</strong><div>Revive Hospital</div><div class="sig"></div><small>Signature</small></div><div class="discharge-meta"><b>Date of Discharge:</b> ${fmtDate(discharge.discharge_date||discharge.finalized_at||new Date())}<br><b>Status:</b> ${esc(discharge.status||'Finalized')}<div class="wish">We wish you a speedy recovery.<br>Thank you for choosing Revive Hospital.</div></div></div>
       <div class="footer">Thank you for trusting us with your care. &nbsp; | &nbsp; Revive HealthScope</div>
-    </div><script>window.onload=function(){setTimeout(function(){window.print()},180)}<\/script></body></html>`);
+    </div><script>window.onload=function(){setTimeout(function(){var s=document.querySelector('.sheet');var target=1040;var h=s.scrollHeight;var z=Math.min(1,target/h);if(z<1){z=Math.max(.76,z);s.style.zoom=z}setTimeout(function(){window.print()},100)},120)}<\/script></body></html>`);
     w.document.close();
   }
 
