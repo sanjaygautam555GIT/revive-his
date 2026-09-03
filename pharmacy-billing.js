@@ -2,6 +2,7 @@ const PHARMACY_GSTIN='09AYCPG7076L1ZZ';
 let pharmacyBillItems=[];
 let pharmacyStockRows=[];
 let currentPharmacyPatient=null;
+let currentIPDAdvance={original:0,used:0,available:0};
 
 const phMoney=v=>`₹${Number(v||0).toFixed(2)}`;
 
@@ -54,7 +55,8 @@ async function renderPharmacyBilling(){
         <b>Round Off</b><span id="billRoundOff" style="text-align:right">+₹0.00</span>
         <b style="border-top:1px solid #ddd;padding-top:9px">Final Bill</b><b id="billFinalAmount" style="text-align:right;border-top:1px solid #ddd;padding-top:9px;font-size:20px">₹0</b>
       </div>
-      <p style="margin:12px 0 0;color:#667085;font-size:13px">Full payment is required before generating the pharmacy bill.</p>
+      <div id="ipdAdvanceStatus" class="sync-box hidden" style="margin-top:12px"></div>
+      <p id="pharmacyPaymentHelp" style="margin:12px 0 0;color:#667085;font-size:13px">Full payment is required before generating the pharmacy bill.</p>
     </div>
     <button id="saveBillBtn" type="button">Save Bill</button> <button id="clearBillBtn" type="button" class="secondary">Clear</button>
   </div>
@@ -79,9 +81,40 @@ async function renderPharmacyBilling(){
 
 function clearPharmacyPatient(){
   currentPharmacyPatient=null;
+  currentIPDAdvance={original:0,used:0,available:0};
   const vals={billPatientName:'Walk-in',billPatientType:'Walk-in',billUhid:'',billRef:'',billMobile:'',phSearch:''};
   for(const [id,val] of Object.entries(vals)){const e=document.getElementById(id);if(e)e.value=val;}
   const msg=document.getElementById('phMsg');if(msg)msg.innerHTML='';
+  updatePharmacyPaymentMode();
+}
+
+function updatePharmacyPaymentMode(){
+  const isIPD=currentPharmacyPatient?.type==='IPD';
+  const mode=document.getElementById('billPaymentMode'),paid=document.getElementById('billAmountPaid');
+  const help=document.getElementById('pharmacyPaymentHelp'),status=document.getElementById('ipdAdvanceStatus');
+  if(mode){
+    mode.disabled=isIPD;
+    mode.innerHTML=isIPD?'<option>IPD Advance</option>':'<option>Cash</option><option>UPI</option><option>Bank</option>';
+  }
+  if(paid){paid.disabled=isIPD;if(isIPD)paid.value='0.00';}
+  if(help)help.textContent=isIPD?'No separate pharmacy payment is collected. This bill will be imported into IPD Daily Charges and adjusted against the advance.':'Full payment is required before generating the pharmacy bill.';
+  if(status){
+    status.classList.toggle('hidden',!isIPD);
+    if(isIPD)status.innerHTML=`<b>IPD Advance</b><br>Deposited: ${phMoney(currentIPDAdvance.original)} · Charges used: ${phMoney(currentIPDAdvance.used)} · Available: <b>${phMoney(currentIPDAdvance.available)}</b>`;
+  }
+}
+
+async function loadIPDAdvance(admission){
+  const admissionId=admission.admission_id||String(admission.id),dbId=String(admission.id||''),uhid=String(admission.uhid||'');
+  const {data,error}=await db.from('ipd_daily_charges').select('admission_id,uhid,amount,rate,quantity,category');
+  if(error)throw error;
+  const used=(data||[]).filter(c=>String(c.admission_id||'')===String(admissionId)||String(c.admission_id||'')===dbId||(uhid&&String(c.uhid||'')===uhid)).reduce((sum,c)=>{
+    const amount=Number(c.amount!==undefined?c.amount:Number(c.rate||0)*Number(c.quantity||1));
+    return sum+((String(c.category||'').toLowerCase()==='discount')?-Math.abs(amount):amount);
+  },0);
+  const original=Number(admission.deposit_amount||admission.advance||0);
+  currentIPDAdvance={original,used:Math.max(used,0),available:Math.max(original-used,0)};
+  updatePharmacyPaymentMode();
 }
 
 async function importPharmacyPatient(){
@@ -98,6 +131,7 @@ async function importPharmacyPatient(){
       currentPharmacyPatient={type:'IPD',ref:r.admission_id||String(r.id),uhid:r.uhid||'',name:r.patient_name||''};
       document.getElementById('billPatientName').value=r.patient_name||'';document.getElementById('billPatientType').value='IPD';document.getElementById('billUhid').value=r.uhid||'';document.getElementById('billRef').value=r.admission_id||String(r.id);document.getElementById('billMobile').value=r.mobile||'';
       msg.innerHTML=`<div class='sync-box'><b>IPD patient imported</b><br>${r.patient_name||''} · ${r.uhid||''} · ${r.admission_id||''}</div>`;
+      await loadIPDAdvance(r);
     }else{
       const rows=await fetchAll('opd_visits');
       const r=rows.find(x=>[x.visit_id,x.uhid,x.patient_name,x.mobile].join(' ').toLowerCase().includes(q));
@@ -156,6 +190,8 @@ function renderBillItems(){
   const map={billSubtotal:phMoney(t.subtotal),billNetAmount:phMoney(t.net),billRoundOff:`${t.roundOff>=0?'+':''}${phMoney(t.roundOff)}`,billFinalAmount:`₹${t.final}`};
   for(const [id,val] of Object.entries(map)){const e=document.getElementById(id);if(e)e.textContent=val;}
   const paid=document.getElementById('billAmountPaid');if(paid)paid.value=t.final.toFixed(2);
+  if(currentPharmacyPatient?.type==='IPD'&&paid)paid.value='0.00';
+  updatePharmacyPaymentMode();
 }
 
 function clearPharmacyBill(){
@@ -171,9 +207,10 @@ async function savePharmacyBill(){
   if(!pharmacyBillItems.length){alert('Add at least one item.');return;}
   const t=phTotals(),paid=Number(document.getElementById('billAmountPaid').value||0);
   if(t.final<=0){alert('Final bill amount must be greater than zero.');return;}
-  if(Math.abs(paid-t.final)>0.009){alert(`Full payment of ₹${t.final} is required before generating the pharmacy bill.`);return;}
+  const isIPD=currentPharmacyPatient?.type==='IPD';
+  if(!isIPD&&Math.abs(paid-t.final)>0.009){alert(`Full payment of ₹${t.final} is required before generating the pharmacy bill.`);return;}
   const meta={__bill_meta:true,subtotal:t.subtotal,discount_amount:t.discount,net_amount:t.net,round_off:t.roundOff,final_bill:t.final,uhid:document.getElementById('billUhid').value||'',reference:document.getElementById('billRef').value||'',mobile:document.getElementById('billMobile').value||'',pharmacist:currentUser?.name||currentUser?.username||'',bill_time:new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})};
-  const payload={patient_name:document.getElementById('billPatientName').value.trim()||'Walk-in',patient_type:document.getElementById('billPatientType').value,bill_date:document.getElementById('billDate').value,bill_amount:t.final,amount_paid:t.final,amount_due:0,payment_status:'Paid',payment_mode:document.getElementById('billPaymentMode').value,items_json:JSON.stringify([...pharmacyBillItems,meta]),created_at:new Date().toISOString()};
+  const payload={patient_name:document.getElementById('billPatientName').value.trim()||'Walk-in',patient_type:isIPD?'IPD':document.getElementById('billPatientType').value,bill_date:document.getElementById('billDate').value,bill_amount:t.final,amount_paid:isIPD?0:t.final,amount_due:0,payment_status:isIPD?'Transferred to IPD':'Paid',payment_mode:isIPD?'IPD Advance':document.getElementById('billPaymentMode').value,items_json:JSON.stringify([...pharmacyBillItems,meta]),created_at:new Date().toISOString()};
   const msg=document.getElementById('billingMessage'),btn=document.getElementById('saveBillBtn');btn.disabled=true;btn.textContent='Saving...';
   try{
     const {data:sale,error}=await db.from('pharmacy_sales').insert([payload]).select().single();if(error)throw error;
@@ -183,8 +220,12 @@ async function savePharmacyBill(){
       const newQty=Math.max(Number(stock?.quantity||0)-byStock[stockId],0);
       const r=await db.from('pharmacy_stock').update({quantity:newQty}).eq('id',stockId);if(r.error)throw new Error(`Bill saved, but stock update failed: ${r.error.message}`);
     }
-    if(currentPharmacyPatient?.type==='IPD')await db.from('ipd_daily_charges').insert([{admission_id:currentPharmacyPatient.ref,uhid:currentPharmacyPatient.uhid,patient_name:currentPharmacyPatient.name,charge_date:document.getElementById('billDate').value||todayISO(),category:'Pharmacy Charge',description:`Pharmacy Bill PH-${sale.id}`,rate:t.final,quantity:1,amount:t.final,created_at:new Date().toISOString()}]);
-    msg.innerHTML=`<p class="success">Payment received. Bill saved and stock updated. <button type="button" class="secondary" onclick="printPharmacyBill(${sale.id})">Print Bill</button></p>`;
+    if(isIPD){
+      const description=`Pharmacy Bill PH-${sale.id}`;
+      const {data:existing,error:checkError}=await db.from('ipd_daily_charges').select('id').eq('admission_id',currentPharmacyPatient.ref).eq('description',description).limit(1);if(checkError)throw checkError;
+      if(!(existing||[]).length){const charge=await db.from('ipd_daily_charges').insert([{admission_id:currentPharmacyPatient.ref,uhid:currentPharmacyPatient.uhid,patient_name:currentPharmacyPatient.name,charge_date:document.getElementById('billDate').value||todayISO(),category:'Pharmacy Charge',description,rate:t.final,quantity:1,amount:t.final,created_at:new Date().toISOString()}]);if(charge.error)throw new Error(`Pharmacy bill saved, but IPD import failed: ${charge.error.message}`);}
+    }
+    msg.innerHTML=isIPD?`<p class="success">Bill saved, imported into IPD Daily Charges, and adjusted against the advance. <button type="button" class="secondary" onclick="printPharmacyBill(${sale.id})">Print Bill</button></p>`:`<p class="success">Payment received. Bill saved and stock updated. <button type="button" class="secondary" onclick="printPharmacyBill(${sale.id})">Print Bill</button></p>`;
     pharmacyBillItems=[];clearPharmacyPatient();document.getElementById('billDiscount').value='0';renderBillItems();await Promise.all([loadBillingStock(),loadPharmacySales()]);
   }catch(err){msg.innerHTML=`<p class="error">${err.message||'Unable to save pharmacy bill.'}</p>`;}
   finally{btn.disabled=false;btn.textContent='Save Bill';}
