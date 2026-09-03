@@ -128,6 +128,9 @@ function renderChargeAdmissionSummary(){
       <div><b>Admission Date</b><br>${a.admission_date||rowDate(a)||""}</div>
       <div><b>Doctor</b><br>${a.doctor||a.consultant||""}</div>
       <div><b>Diagnosis</b><br>${a.diagnosis||""}</div>
+      <div><b>Advance Deposited</b><br><span id="ipdChargeAdvance">${money(a.deposit_amount||a.advance||0)}</span></div>
+      <div><b>Total Daily Bill</b><br><span id="ipdChargeTotal">${money(0)}</span></div>
+      <div><b>Available Advance</b><br><strong id="ipdChargeAdvanceAvailable">${money(a.deposit_amount||a.advance||0)}</strong></div>
     </div>`;
 }
 
@@ -157,4 +160,12 @@ async function loadIPDCharges(){
   if(error){body.innerHTML=`<tr><td colspan='6' class='error'>${error.message}</td></tr>`;return;}
   ipdChargeState.charges=data||[];
   body.innerHTML=ipdChargeState.charges.length?ipdChargeState.charges.map(c=>`<tr><td>${c.charge_date||rowDate(c)}</td><td>${c.category||""}</td><td>${c.description||""}</td><td>${money(c.rate||0)}</td><td>${c.quantity||0}</td><td>${money(c.amount||0)}</td></tr>`).join(""):"<tr><td colspan='6'>No charges yet.</td></tr>";
+  const total=ipdChargeState.charges.reduce((sum,c)=>{
+    const amount=safeNumber(c.amount!==undefined?c.amount:safeNumber(c.rate)*safeNumber(c.quantity||1));
+    return sum+((String(c.category||'').toLowerCase()==='discount')?-Math.abs(amount):amount);
+  },0);
+  const advance=safeNumber(a.deposit_amount||a.advance);
+  const totalEl=document.getElementById('ipdChargeTotal'),availableEl=document.getElementById('ipdChargeAdvanceAvailable');
+  if(totalEl)totalEl.textContent=money(Math.max(total,0));
+  if(availableEl)availableEl.textContent=money(Math.max(advance-total,0));
 }
