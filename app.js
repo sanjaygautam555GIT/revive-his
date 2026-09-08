@@ -4,7 +4,7 @@ function setVisibleView(name){Object.keys(VIEWS).forEach(k=>ensureView(k));docum
 async function navigate(name){if(name==="dashboard"&&currentUser?.role!=="owner"){name=navForRole(currentUser.role)[0]}const v=VIEWS[name];if(!v)return;document.getElementById("pageTitle").textContent=v.title;document.getElementById("pageSubtitle").textContent=v.subtitle;setVisibleView(name);document.querySelectorAll("#mainNav button").forEach(b=>b.classList.toggle("active",b.dataset.view===name));await v.render()}
 function navForRole(role){if(role==="owner")return ["dashboard","patientSearch","cashReport","reports","doctorMaster","userManagement"];const base=(NAV_BY_ROLE[role]||[]).slice().filter(x=>x!=="dashboard"&&x!=="doctorMaster"&&x!=="printCenter"&&x!=="userManagement"&&x!=="medicineMaster");if(role==="staff"&&!base.includes("ipdCharges")){const i=base.indexOf("ipd");base.splice(i>=0?i+1:base.length,0,"ipdCharges")}if(role==="staff"&&!base.includes("ipdBilling")){const i=base.indexOf("ipdCharges");base.splice(i>=0?i+1:base.length,0,"ipdBilling")}if(role==="staff"&&!base.includes("diagnostics")){const i=base.indexOf("ipdBilling");base.splice(i>=0?i+1:base.length,0,"diagnostics")}if(role==="pharmacyOwner"){if(!base.includes("purchaseReturns")){const i=base.indexOf("purchaseRegister");base.splice(i>=0?i+1:base.length,0,"purchaseReturns")}if(!base.includes("pharmacyCustomerReturns")){const i=base.indexOf("pharmacyStock");base.splice(i>=0?i+1:base.length,0,"pharmacyCustomerReturns")}if(!base.includes("supplierMaster")){base.push("supplierMaster")}}if(role==="pharmacy"&&!base.includes("pharmacyCustomerReturns")){const i=base.indexOf("pharmacyBilling");base.splice(i>=0?i+1:base.length,0,"pharmacyCustomerReturns")}if(role==="accountant"&&!base.includes("cashBook")){base.splice(1,0,"cashBook")}if(role==="accountant"&&!base.includes("supplierMaster")){base.splice(2,0,"supplierMaster")}if(role==="accountant"&&!base.includes("expenses")){base.splice(1,0,"expenses")}return base}
 function buildNav(){const nav=document.getElementById("mainNav");nav.innerHTML="";navForRole(currentUser.role).forEach(k=>{const b=document.createElement("button");b.textContent=VIEWS[k].title;b.dataset.view=k;b.onclick=()=>navigate(k);nav.appendChild(b)})}
-function showApp(){document.getElementById("landingPage")?.classList.add("hidden");document.getElementById("loginPage").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");document.getElementById("roleBadge").textContent=ROLE_LABELS[currentUser.role]||currentUser.name||"User";buildNav();navigate(navForRole(currentUser.role)[0]||"dashboard")}
+function showApp(){document.getElementById("landingPage")?.classList.add("hidden");document.getElementById("loginPage").classList.add("hidden");document.getElementById("appShell").classList.remove("hidden");document.getElementById("roleBadge").textContent=ROLE_LABELS[currentUser.role]||currentUser.name||"User";buildNav();navigate(navForRole(currentUser.role)[0]||"dashboard");startReviveRealtimeSync()}
 function loadScriptOnce(src){return new Promise((resolve,reject)=>{if(document.querySelector(`script[src="${src}"]`)){resolve();return}const s=document.createElement("script");s.src=src;s.onload=resolve;s.onerror=reject;document.body.appendChild(s)})}
 async function openDoctorPortal(){await loadScriptOnce("doctor-portal.js");await loadScriptOnce("doctor-vitals.js");await loadScriptOnce("doctor-intraop.js");window.applyIntraopDischargePatches?.();return renderDoctorPortal()}
 async function openDoctorDashboardV3(){await loadScriptOnce("doctor-portal-nav-v3.js?v=20260827-3");return VIEWS.doctorDashboard.render===openDoctorDashboardV3?renderDoctorPortal():VIEWS.doctorDashboard.render()}
@@ -44,27 +44,51 @@ document.getElementById("loginOtp").addEventListener("keydown",e=>{if(e.key==="E
 document.getElementById("logoutBtn").onclick=()=>{logout();location.reload()};
 if(restoreSession())showApp();
 
-// Safe in-app data auto-refresh: every 30 seconds without a full page reload.
-const REVIVE_AUTO_REFRESH_MS=30000;
-let reviveAutoRefreshBusy=false;
-function reviveUserIsEditing(){
-  const el=document.activeElement;
-  if(!el)return false;
-  const tag=(el.tagName||"").toLowerCase();
-  return tag==="input"||tag==="textarea"||tag==="select"||el.isContentEditable;
+// Realtime differential refresh: no timer and no whole-page reload.
+let reviveRealtimeChannel=null;
+let reviveRealtimeBusy=false;
+let reviveRealtimePending=false;
+function reviveUserIsEditing(){const el=document.activeElement;if(!el)return false;const tag=(el.tagName||"").toLowerCase();return tag==="input"||tag==="textarea"||tag==="select"||el.isContentEditable}
+function reviveActiveViewName(){const active=document.querySelector("#mainNav button.active");return active?.dataset?.view||null}
+function reviveNodeKey(node){if(node?.nodeType!==1)return null;return node.id||node.dataset?.id||node.dataset?.key||node.dataset?.patientId||node.dataset?.admissionId||null}
+function reviveSyncAttributes(live,fresh){Array.from(live.attributes||[]).forEach(a=>{if(!fresh.hasAttribute(a.name))live.removeAttribute(a.name)});Array.from(fresh.attributes||[]).forEach(a=>{if(live.getAttribute(a.name)!==a.value)live.setAttribute(a.name,a.value)})}
+function reviveMorph(live,fresh){
+  if(!live||!fresh)return;
+  if(live.nodeType!==fresh.nodeType){live.replaceWith(fresh.cloneNode(true));return}
+  if(live.nodeType===3){if(live.nodeValue!==fresh.nodeValue)live.nodeValue=fresh.nodeValue;return}
+  if(live.nodeType!==1)return;
+  if(live.tagName!==fresh.tagName){live.replaceWith(fresh.cloneNode(true));return}
+  reviveSyncAttributes(live,fresh);
+  if(["INPUT","TEXTAREA","SELECT"].includes(live.tagName)){if(document.activeElement!==live){if(live.value!==fresh.value)live.value=fresh.value;if("checked" in live&&live.checked!==fresh.checked)live.checked=fresh.checked}return}
+  const liveChildren=Array.from(live.childNodes), freshChildren=Array.from(fresh.childNodes);
+  const keyed=new Map();liveChildren.forEach((n,i)=>{const k=reviveNodeKey(n);if(k)keyed.set(k,{n,i})});
+  for(let i=0;i<freshChildren.length;i++){
+    const f=freshChildren[i], key=reviveNodeKey(f);let l=live.childNodes[i];
+    if(key){const hit=keyed.get(key);if(hit&&hit.n!==l){live.insertBefore(hit.n,l||null);l=hit.n}}
+    if(!l){live.appendChild(f.cloneNode(true));continue}
+    reviveMorph(l,f)
+  }
+  while(live.childNodes.length>freshChildren.length)live.removeChild(live.lastChild)
 }
-function reviveActiveViewName(){
-  const active=document.querySelector("#mainNav button.active");
-  return active?.dataset?.view||null;
+async function reviveDifferentialRefresh(){
+  if(reviveRealtimeBusy||document.hidden||!currentUser){reviveRealtimePending=true;return}
+  if(reviveUserIsEditing()){reviveRealtimePending=true;return}
+  const name=reviveActiveViewName();if(!name||!VIEWS[name])return;
+  const live=document.getElementById(name+"View");if(!live)return;
+  reviveRealtimeBusy=true;
+  const originalId=live.id;const sandbox=document.createElement("section");
+  sandbox.id=originalId;sandbox.className=live.className;sandbox.style.cssText="position:fixed;left:-100000px;top:0;width:"+(live.offsetWidth||1200)+"px;visibility:hidden;pointer-events:none";
+  live.id=originalId+"__live";document.querySelector("main.main")?.appendChild(sandbox);
+  try{await VIEWS[name].render();reviveMorph(live,sandbox);reviveRealtimePending=false}
+  catch(err){console.warn("Revive realtime refresh skipped:",err)}
+  finally{sandbox.remove();live.id=originalId;reviveRealtimeBusy=false}
 }
-async function reviveAutoRefresh(){
-  if(reviveAutoRefreshBusy||document.hidden||!currentUser||reviveUserIsEditing())return;
-  const name=reviveActiveViewName();
-  if(!name||!VIEWS[name])return;
-  reviveAutoRefreshBusy=true;
-  try{await VIEWS[name].render();}
-  catch(err){console.warn("Revive auto-refresh skipped:",err);}
-  finally{reviveAutoRefreshBusy=false;}
+function startReviveRealtimeSync(){
+  if(reviveRealtimeChannel||!window.db&&!db)return;
+  try{
+    const client=typeof db!=="undefined"?db:window.db;
+    reviveRealtimeChannel=client.channel("revive-live-sync").on("postgres_changes",{event:"*",schema:"public"},()=>reviveDifferentialRefresh()).subscribe();
+  }catch(err){console.warn("Revive realtime unavailable:",err)}
 }
-setInterval(reviveAutoRefresh,REVIVE_AUTO_REFRESH_MS);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)reviveAutoRefresh();});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&reviveRealtimePending)reviveDifferentialRefresh()});
+document.addEventListener("focusout",()=>{if(reviveRealtimePending)setTimeout(reviveDifferentialRefresh,250)});
