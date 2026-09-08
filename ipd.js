@@ -5,6 +5,23 @@
   x.send(null);
   if(x.status>=200&&x.status<300){(0,eval)(x.responseText);}else{throw new Error('Unable to load IPD base module');}
 
+  var baseLoadIPDDoctors=window.loadIPDDoctors;
+  window.loadIPDDoctors=async function(){
+    var select=document.getElementById('ipdConsultant');
+    var result=await db.from('doctor_master').select('*').order('doctor_name',{ascending:true});
+    if(result.error){ipdDoctorMaster=[];select.innerHTML="<option value=''>Doctor master not loaded</option>";return;}
+    ipdDoctorMaster=(result.data||[]).filter(function(d){return String(d.status||'Active').toLowerCase()==='active';});
+    ipdDoctorMaster.sort(function(a,b){
+      var an=String(a.doctor_name||'').toLowerCase(),bn=String(b.doctor_name||'').toLowerCase();
+      var aSanjay=an.includes('sanjay'),bSanjay=bn.includes('sanjay');
+      if(aSanjay&&!bSanjay)return -1;
+      if(!aSanjay&&bSanjay)return 1;
+      return an.localeCompare(bn);
+    });
+    select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map(function(d){return '<option value="'+d.id+'">'+d.doctor_name+'</option>';}).join(''):"<option value=''>No active doctor</option>";
+    applyIPDDoctorDepartment();
+  };
+
   var baseLoadIPDRegister=window.loadIPDRegister;
   window.loadIPDRegister=async function(){
     var body=document.getElementById('ipdRows');
