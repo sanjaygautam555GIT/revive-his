@@ -1,0 +1,3 @@
+REVIVE HealthScope deployment refresh trigger
+Triggered: 2026-09-08 13:42 IST
+Purpose: force Netlify continuous deployment from main branch.
