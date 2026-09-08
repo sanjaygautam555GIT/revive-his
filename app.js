@@ -43,3 +43,28 @@ document.getElementById("backToLoginBtn").addEventListener("click",()=>{ReviveOt
 document.getElementById("loginOtp").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();verifyOtpBtn.click()}});
 document.getElementById("logoutBtn").onclick=()=>{logout();location.reload()};
 if(restoreSession())showApp();
+
+// Safe in-app data auto-refresh: every 30 seconds without a full page reload.
+const REVIVE_AUTO_REFRESH_MS=30000;
+let reviveAutoRefreshBusy=false;
+function reviveUserIsEditing(){
+  const el=document.activeElement;
+  if(!el)return false;
+  const tag=(el.tagName||"").toLowerCase();
+  return tag==="input"||tag==="textarea"||tag==="select"||el.isContentEditable;
+}
+function reviveActiveViewName(){
+  const active=document.querySelector("#mainNav button.active");
+  return active?.dataset?.view||null;
+}
+async function reviveAutoRefresh(){
+  if(reviveAutoRefreshBusy||document.hidden||!currentUser||reviveUserIsEditing())return;
+  const name=reviveActiveViewName();
+  if(!name||!VIEWS[name])return;
+  reviveAutoRefreshBusy=true;
+  try{await VIEWS[name].render();}
+  catch(err){console.warn("Revive auto-refresh skipped:",err);}
+  finally{reviveAutoRefreshBusy=false;}
+}
+setInterval(reviveAutoRefresh,REVIVE_AUTO_REFRESH_MS);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)reviveAutoRefresh();});
