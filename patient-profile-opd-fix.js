@@ -1,5 +1,19 @@
 // Aligns Patient Search profile fields with the actual OPD data model.
 (function(){
+  let archiveLoader=null;
+  function ensureArchiveModule(){
+    if(window.renderPatientIPDArchive)return Promise.resolve();
+    if(archiveLoader)return archiveLoader;
+    archiveLoader=new Promise((resolve,reject)=>{
+      const s=document.createElement('script');
+      s.src='patient-ipd-archive.js?v=20260909-1';
+      s.onload=resolve;
+      s.onerror=()=>reject(new Error('Unable to load previous IPD documents module'));
+      document.body.appendChild(s);
+    });
+    return archiveLoader;
+  }
+
   function latestOPDVisit(patient){
     return (patient?.visits||[]).slice().sort((a,b)=>new Date(b.created_at||b.visit_date||0)-new Date(a.created_at||a.visit_date||0))[0]||null;
   }
@@ -49,5 +63,10 @@
         <div class="hs-metric"><span>Total Billing</span><strong>${money(total)}</strong></div>
       </div>
       <div class="hs-section"><h4>Recent OPD Visits</h4><table class="hs-mini-table"><thead><tr><th>Date</th><th>Doctor</th><th>Department</th><th>Amount</th></tr></thead><tbody>${visits.length?visits.map(v=>`<tr><td>${v.visit_date||rowDate(v)||"-"}</td><td>${v.consultant||"-"}</td><td>${v.department||"-"}</td><td>${money(v.amount||0)}</td></tr>`).join(""):"<tr><td colspan='4'>No OPD visits.</td></tr>"}</tbody></table></div>`;
+
+    ensureArchiveModule().then(()=>window.renderPatientIPDArchive?.(key)).catch(err=>{
+      const host=document.getElementById('patientProfile');
+      if(host)host.insertAdjacentHTML('beforeend',`<div class="hs-section"><h4>Previous IPD Documents</h4><div class="hs-empty error">${err.message}</div></div>`);
+    });
   };
 })();
