@@ -1,7 +1,7 @@
 /* Revive IPD loader + advance top-up extension */
 (function(){
   var x=new XMLHttpRequest();
-  x.open('GET','ipd-base.js?v=20260908-advance-topup',false);
+  x.open('GET','ipd-base.js?v=20260909-admission-consultant-fix',false);
   x.send(null);
   if(x.status>=200&&x.status<300){(0,eval)(x.responseText);}else{throw new Error('Unable to load IPD base module');}
 
@@ -18,7 +18,7 @@
       if(!aSanjay&&bSanjay)return 1;
       return an.localeCompare(bn);
     });
-    select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map(function(d){return '<option value="'+d.id+'">'+d.doctor_name+'</option>';}).join(''):"<option value=''>No active doctor</option>";
+    select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map(function(d,index){return '<option value="'+index+'" data-doctor-id="'+(d.id??'')+'">'+d.doctor_name+'</option>';}).join(''):"<option value=''>No active doctor</option>";
     applyIPDDoctorDepartment();
   };
 
