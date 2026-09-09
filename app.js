@@ -79,7 +79,7 @@ async function reviveDifferentialRefresh(){
   const originalId=live.id;const sandbox=document.createElement("section");
   sandbox.id=originalId;sandbox.className=live.className;sandbox.style.cssText="position:fixed;left:-100000px;top:0;width:"+(live.offsetWidth||1200)+"px;visibility:hidden;pointer-events:none";
   live.id=originalId+"__live";document.querySelector("main.main")?.appendChild(sandbox);
-  try{await VIEWS[name].render();reviveMorph(live,sandbox);reviveRealtimePending=false}
+  try{await VIEWS[name].render();sandbox.removeAttribute("style");reviveMorph(live,sandbox);live.removeAttribute("style");reviveRealtimePending=false}
   catch(err){console.warn("Revive realtime refresh skipped:",err)}
   finally{sandbox.remove();live.id=originalId;reviveRealtimeBusy=false}
 }
