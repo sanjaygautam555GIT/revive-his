@@ -1,4 +1,4 @@
-let ipdDoctorMaster=[];
+var ipdDoctorMaster=[];
 function isActiveIPD(r){return !["discharged","final billed","cancelled","closed"].includes(String(r.status||"Admitted").trim().toLowerCase())}
 
 async function renderIPD(){
