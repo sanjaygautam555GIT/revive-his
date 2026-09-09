@@ -69,10 +69,17 @@ async function loadIPDDoctors(){
   const {data,error}=await db.from("doctor_master").select("*").order("doctor_name",{ascending:true});
   if(error){ipdDoctorMaster=[];select.innerHTML="<option value=''>Doctor master not loaded</option>";return;}
   ipdDoctorMaster=(data||[]).filter(d=>String(d.status||"Active").toLowerCase()==="active");
-  select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map(d=>`<option value="${d.id}">${d.doctor_name}</option>`).join(""):"<option value=''>No active doctor</option>";
+  select.innerHTML=ipdDoctorMaster.length?ipdDoctorMaster.map((d,index)=>`<option value="${index}" data-doctor-id="${d.id??""}">${d.doctor_name}</option>`).join(""):"<option value=''>No active doctor</option>";
   applyIPDDoctorDepartment();
 }
-function selectedIPDDoctor(){const id=document.getElementById("ipdConsultant")?.value;return (ipdDoctorMaster||[]).find(d=>String(d.id)===String(id));}
+function selectedIPDDoctor(){
+  const select=document.getElementById("ipdConsultant");
+  if(!select||select.disabled||select.selectedIndex<0)return null;
+  const index=Number(select.value);
+  if(Number.isInteger(index)&&index>=0&&index<(ipdDoctorMaster||[]).length)return ipdDoctorMaster[index];
+  const doctorId=select.options[select.selectedIndex]?.dataset.doctorId;
+  return (ipdDoctorMaster||[]).find(d=>String(d.id)===String(doctorId))||null;
+}
 function applyIPDDoctorDepartment(){const d=selectedIPDDoctor();const dept=document.getElementById("ipdDepartment");if(dept)dept.value=d?.department||"";}
 
 async function searchIPDPatient(){
