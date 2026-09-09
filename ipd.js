@@ -54,4 +54,69 @@
     try{await db.from('ipd_advance_transactions').insert([{admission_id:a.admission_id||String(a.id),admission_row_id:a.id,uhid:a.uhid,patient_name:a.patient_name,amount:amount,payment_mode:mode,transaction_date:date,reference_no:reference,remarks:remarks,transaction_type:'Top-Up',created_at:new Date().toISOString()}]);}catch(e){}
     msg.innerHTML="<p class='success'>Advance topped up by "+money(amount)+'. New total advance: <b>'+money(newTotal)+'</b>.</p>';window.ipdTopupAdmission=Object.assign({},a,{advance:newTotal,deposit_amount:newTotal});await loadIPDRegister();setTimeout(closeAdvanceTopup,1200);
   };
+
+  function setIPDAdmissionRoute(route){
+    var form=document.getElementById('ipdForm');
+    if(form)form.dataset.admissionRoute=route||'existing';
+    var directBtn=document.getElementById('ipdDirectAdmissionBtn');
+    if(directBtn)directBtn.setAttribute('aria-pressed',route==='direct'?'true':'false');
+  }
+
+  window.startDirectIPDAdmission=function(){
+    clearIPDForm();
+    setIPDAdmissionRoute('direct');
+    var uhid=generateIPDUHID();
+    var uhidInput=document.getElementById('ipdUhid');
+    if(uhidInput)uhidInput.value=uhid;
+    var term=document.getElementById('ipdSearchTerm');
+    if(term)term.value='';
+    var result=document.getElementById('ipdSearchResult');
+    if(result)result.innerHTML='<div class="sync-box"><b>Direct New Patient Admission</b><br>This patient does not need a prior OPD visit. Enter the patient details below. A new UHID has been generated and the patient will be registered directly in the patient master when the IPD admission is saved.<br><b>New UHID: '+uhid+'</b></div>';
+    var msg=document.getElementById('ipdMessage');
+    if(msg)msg.innerHTML='';
+    document.getElementById('ipdName')?.focus();
+  };
+
+  var baseLoadPatientIntoIPD=window.loadPatientIntoIPD;
+  window.loadPatientIntoIPD=async function(p,msg){
+    setIPDAdmissionRoute('existing');
+    return baseLoadPatientIntoIPD(p,msg);
+  };
+
+  var baseSearchIPDPatient=window.searchIPDPatient;
+  window.searchIPDPatient=async function(){
+    setIPDAdmissionRoute('existing');
+    await baseSearchIPDPatient();
+    var result=document.getElementById('ipdSearchResult');
+    if(result&&result.textContent.includes('Register patient in OPD first')){
+      result.innerHTML='<div class="sync-box"><b>No existing patient found.</b><br>You can admit this patient without OPD. Click <b>Direct New Patient Admission</b> above, then enter the patient details.</div>';
+    }
+  };
+
+  var baseClearIPDForm=window.clearIPDForm;
+  window.clearIPDForm=function(){
+    baseClearIPDForm();
+    setIPDAdmissionRoute('existing');
+  };
+
+  function installDirectIPDAdmissionUI(){
+    var search=document.getElementById('ipdSearchTerm');
+    var panel=search?.closest('.panel');
+    if(!panel||document.getElementById('ipdDirectAdmissionBtn'))return;
+    var action=document.createElement('div');
+    action.id='ipdAdmissionRouteActions';
+    action.className='sync-box';
+    action.style.margin='14px 0';
+    action.innerHTML='<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b>Patient not seen in OPD?</b><br><span>Register the patient and create the IPD admission in one step.</span></div><button type="button" id="ipdDirectAdmissionBtn" style="font-weight:700">+ Direct New Patient Admission</button></div>';
+    var grid=search.closest('.grid');
+    if(grid)panel.insertBefore(action,grid);else panel.appendChild(action);
+    document.getElementById('ipdDirectAdmissionBtn').onclick=startDirectIPDAdmission;
+    setIPDAdmissionRoute(document.getElementById('ipdForm')?.dataset.admissionRoute||'existing');
+  }
+
+  var baseRenderIPD=window.renderIPD;
+  window.renderIPD=async function(){
+    await baseRenderIPD();
+    installDirectIPDAdmissionUI();
+  };
 })();
