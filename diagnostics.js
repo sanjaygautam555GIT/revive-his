@@ -14,7 +14,7 @@ el.innerHTML=`<div class="panel"><h2>Diagnostics Billing</h2><p>Import patient, 
 <div class="panel table-wrap"><h3>3. Bill</h3><table><thead><tr><th>Investigation</th><th>Price</th><th>Qty</th><th>Amount</th><th>Action</th></tr></thead><tbody id="diagItemRows"></tbody></table><h2>Total: <span id="diagTotal">₹0</span></h2><button id="saveDiagnosticsBillBtn">Save Bill</button><div id="diagnosticsBillMessage"></div></div>
 <div class="panel table-wrap"><h3>Recent Diagnostics Bills</h3><table><thead><tr><th>Bill No</th><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Mode</th><th>Print</th></tr></thead><tbody id="diagnosticsRegisterRows"></tbody></table></div>`;
 document.getElementById("diagSearchBtn").onclick=searchDiagnosticsPatient;
-document.getElementById("diagPatientSearch").onkeydown=e=>{if(e.key==="Enter")searchDiagnosticsPatient()};
+document.getElementById("diagPatientSearch").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();searchDiagnosticsPatient()}};
 document.getElementById("diagTypeSelect").onchange=populateDiagnosticNames;
 document.getElementById("diagTestSelect").onchange=applyDiagnosticTestPreset;
 document.getElementById("addDiagItemBtn").onclick=addDiagnosticItem;
@@ -23,7 +23,25 @@ populateDiagnosticNames();renderDiagnosticItems();await loadDiagnosticsRegister(
 function populateDiagnosticNames(){const type=document.getElementById("diagTypeSelect")?.value||"Laboratory";const select=document.getElementById("diagTestSelect");const list=DIAGNOSTIC_GROUPS[type]||[];if(select)select.innerHTML=list.map(([name,price])=>`<option value="${name}" data-price="${price}">${name}</option>`).join("");applyDiagnosticTestPreset();}
 function selectedDiagnosticName(){const opt=document.getElementById("diagTestSelect")?.selectedOptions?.[0];if(!opt)return {name:"",price:0};return {name:opt.value,price:safeNumber(opt.dataset.price)};}
 function applyDiagnosticTestPreset(){const t=selectedDiagnosticName();const price=document.getElementById("diagItemPrice");const other=document.getElementById("otherDiagBox");if(price)price.value=t.price;const isOther=["Others","X-Ray Others","CT Others"].includes(t.name);if(other)other.classList.toggle("hidden",!isOther);}
-async function searchDiagnosticsPatient(){const term=document.getElementById("diagPatientSearch").value.trim().toLowerCase();const type=document.getElementById("diagBillingType").value;const msg=document.getElementById("diagPatientResult");diagnosticsState.patient=null;diagnosticsState.admission=null;if(!term){msg.innerHTML="<p class='error'>Enter patient or admission search.</p>";return;}if(type==="IPD"){const admissions=await fetchAll("ipd_admission");const a=admissions.find(r=>isActiveDiagnosticAdmission(r) && [r.admission_id,r.id,r.uhid,r.patient_name,r.mobile].join(" ").toLowerCase().includes(term));if(!a){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}diagnosticsState.admission=a;diagnosticsState.patient={uhid:a.uhid,patient_name:a.patient_name,name:a.patient_name,mobile:a.mobile};msg.innerHTML=`<div class='sync-box'><b>IPD Patient Imported</b><br>${a.patient_name||"Patient"} · ${a.uhid||""} · ${a.admission_id||a.id||""}</div>`;}else{const patients=await fetchAll("patient");const p=patients.find(r=>[r.uhid,r.patient_id,r.name,r.patient_name,r.mobile].join(" ").toLowerCase().includes(term));if(!p){msg.innerHTML="<p class='error'>No patient found.</p>";return;}diagnosticsState.patient=p;msg.innerHTML=`<div class='sync-box'><b>Patient Imported</b><br>${p.name||p.patient_name||"Patient"} · ${p.uhid||p.patient_id||""}</div>`;}}
+async function searchDiagnosticsPatient(){
+  const term=document.getElementById("diagPatientSearch").value.trim(),type=document.getElementById("diagBillingType").value,msg=document.getElementById("diagPatientResult");
+  diagnosticsState.patient=null;diagnosticsState.admission=null;
+  if(!term){msg.innerHTML="<p class='error'>Enter patient or admission search.</p>";return;}
+  msg.innerHTML="<p>Searching records...</p>";
+  try{
+    if(type==="IPD"){
+      const matches=filterPatientChoices((await fetchAll("ipd_admission")).filter(isActiveDiagnosticAdmission),term,["admission_id","id","uhid","patient_name","mobile"]);
+      if(!matches.length){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
+      renderPatientChoices(msg,matches,{recordLabel:"active admission",detailLabel:"Admission / Ward",detailValue:r=>[r.admission_id||r.id,[r.ward_type,r.bed_no].filter(Boolean).join(" / ")].filter(Boolean).join(" · ")},a=>selectDiagnosticsIPD(a,msg));
+    }else{
+      const matches=filterPatientChoices(await fetchAll("patient"),term,["uhid","patient_id","name","patient_name","mobile"]);
+      if(!matches.length){msg.innerHTML="<p class='error'>No patient found.</p>";return;}
+      renderPatientChoices(msg,matches,{detailLabel:"Address",detailValue:r=>r.address||"-"},p=>selectDiagnosticsOPD(p,msg));
+    }
+  }catch(error){msg.innerHTML=`<p class='error'>Search failed: ${escapePatientChoice(error.message)}</p>`;}
+}
+function selectDiagnosticsIPD(a,msg){diagnosticsState.admission=a;diagnosticsState.patient={id:a.patient_id,uhid:a.uhid,patient_name:a.patient_name,name:a.patient_name,mobile:a.mobile,age:a.age,sex:a.sex};msg.innerHTML=`<div class='sync-box'><b>IPD Patient Imported</b><br>${escapePatientChoice(a.patient_name||"Patient")} · ${escapePatientChoice(a.uhid||"")} · ${escapePatientChoice(a.admission_id||a.id||"")}</div>`;}
+function selectDiagnosticsOPD(p,msg){diagnosticsState.patient=p;msg.innerHTML=`<div class='sync-box'><b>Patient Imported</b><br>${escapePatientChoice(p.name||p.patient_name||"Patient")} · ${escapePatientChoice(p.uhid||p.patient_id||"")}</div>`;}
 function addDiagnosticItem(){const t=selectedDiagnosticName();if(!t.name)return;const isOther=["Others","X-Ray Others","CT Others"].includes(t.name);const custom=document.getElementById("otherDiagName")?.value.trim();const name=isOther?(custom||t.name):t.name;const price=safeNumber(document.getElementById("diagItemPrice").value);const qty=safeNumber(document.getElementById("diagItemQty").value)||1;diagnosticsState.items.push({test_id:null,test_name:name,price,qty,amount:price*qty});document.getElementById("diagItemQty").value="1";if(document.getElementById("otherDiagName"))document.getElementById("otherDiagName").value="";renderDiagnosticItems();}
 function removeDiagnosticItem(i){diagnosticsState.items.splice(i,1);renderDiagnosticItems();}
 function renderDiagnosticItems(){const body=document.getElementById("diagItemRows");const total=diagnosticsState.items.reduce((s,i)=>s+safeNumber(i.amount),0);body.innerHTML=diagnosticsState.items.length?diagnosticsState.items.map((i,idx)=>`<tr><td>${i.test_name}</td><td>${money(i.price)}</td><td>${i.qty}</td><td>${money(i.amount)}</td><td><button class='secondary' onclick='removeDiagnosticItem(${idx})'>Remove</button></td></tr>`).join(""):"<tr><td colspan='5'>No investigations added.</td></tr>";document.getElementById("diagTotal").textContent=money(total);}
