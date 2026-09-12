@@ -46,6 +46,7 @@ async function getCashBookNumbers(date){
   const expenseTotal=financial.operatingExpenses;
   const pharmacyCost=financial.pharmacyCost;
   const capitalExpenditure=financial.capitalExpenditure;
+  const excludedPharmacyExpense=financial.excludedPharmacyExpense;
   const purchaseTotal=sum(purchasesToday,"total_amount");
 
   const opdCash=modeSum(opdToday,"amount","cash");
@@ -66,7 +67,7 @@ async function getCashBookNumbers(date){
   const profit=totalIncome-totalExpenses;
   const profitMargin=totalIncome>0?(profit/totalIncome)*100:0;
 
-  return {date,opdToday,ipdToday,admissionsToday,salesToday,expToday,purchasesToday,opdTotal,ipdTotal,diagnosticTotal,pharmacyTotal,expenseTotal,pharmacyCost,capitalExpenditure,purchaseTotal,totalIncome,totalExpenses,profit,profitMargin,opdCash,opdUpi,opdBank,pharmCash,pharmUpi,pharmBank,expCash,expUpi,expBank,cashCollection,upiCollection,bankCollection};
+  return {date,opdToday,ipdToday,admissionsToday,salesToday,expToday,purchasesToday,opdTotal,ipdTotal,diagnosticTotal,pharmacyTotal,expenseTotal,pharmacyCost,capitalExpenditure,excludedPharmacyExpense,purchaseTotal,totalIncome,totalExpenses,profit,profitMargin,opdCash,opdUpi,opdBank,pharmCash,pharmUpi,pharmBank,expCash,expUpi,expBank,cashCollection,upiCollection,bankCollection};
 }
 
 async function loadCashBookDay(){
@@ -100,6 +101,7 @@ async function loadCashBookDay(){
           <tr><td>General Expenses</td><td>${money(n.expenseTotal)}</td><td>${n.expToday.length} entries</td></tr>
           <tr><td>Pharmacy COGS</td><td>${money(n.pharmacyCost)}</td><td>matched to earned revenue</td></tr>
           <tr><td>Equipment / Capital Purchase</td><td>${money(n.capitalExpenditure)}</td><td>cash outflow only</td></tr>
+          <tr><td>Excluded Duplicate Pharmacy Expense</td><td>${money(n.excludedPharmacyExpense)}</td><td>already represented by COGS / Purchase Register</td></tr>
           <tr><td>Pharmacy Purchases</td><td>${money(n.purchaseTotal)}</td><td>${n.purchasesToday.length} purchase rows</td></tr>
           <tr><th>Total Recorded Expenses</th><th>${money(n.totalExpenses)}</th><th></th></tr>
         </tbody></table></div>

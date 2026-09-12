@@ -45,10 +45,15 @@ function buildFinancialSummary({patients=[],opdVisits=[],ipdAdmissions=[],ipdBil
   const diagnosticRevenue=sumField(diagnostics,"total_amount");
   const revenue=opdRevenue+ipdRevenue+pharmacyRevenue+diagnosticRevenue;
   const ipdAdvanceReceived=admissions.reduce((s,r)=>s+depositAmount(r),0);
-  const capitalExpenses=exp.filter(r=>String(r.category||"").trim().toLowerCase()==="equipment purchase");
-  const operatingExpenseRows=exp.filter(r=>String(r.category||"").trim().toLowerCase()!=="equipment purchase");
+  const expenseCategory=r=>String(r.category||"").trim().toLowerCase();
+  const capitalExpenses=exp.filter(r=>expenseCategory(r)==="equipment purchase");
+  // Medicine inventory is accounted for through the purchase register and COGS.
+  // Old "Pharmacy Expense" rows are excluded to avoid counting the same stock twice.
+  const excludedPharmacyExpenses=exp.filter(r=>expenseCategory(r)==="pharmacy expense");
+  const operatingExpenseRows=exp.filter(r=>!["equipment purchase","pharmacy expense"].includes(expenseCategory(r)));
   const operatingExpenses=sumField(operatingExpenseRows,"amount");
   const capitalExpenditure=sumField(capitalExpenses,"amount");
+  const excludedPharmacyExpense=sumField(excludedPharmacyExpenses,"amount");
   const pharmacyCost=pharmacySalesCost(sales);
   const grossProfit=revenue-operatingExpenses-pharmacyCost;
   const cashOutflow=operatingExpenses+capitalExpenditure+sumField(purchases,"total_amount");
@@ -64,5 +69,5 @@ function buildFinancialSummary({patients=[],opdVisits=[],ipdAdmissions=[],ipdBil
   const totalCollection=cashCollection+upiCollection+bankCollection;
   const earnedCollection=earnedCashCollection+earnedUpiCollection+earnedBankCollection;
   const stockValue=stockValuation(stock);
-  return {opd,admissions,bills,ipdBillItems,diagnostics,diagnosticBills,exp,operatingExpenseRows,capitalExpenses,sales,pharmacySales,purchases,opdRevenue,ipdRevenue,diagnosticRevenue,pharmacyRevenue,revenue,ipdAdvanceReceived,ipdDepositCollection:ipdAdvanceReceived,operatingExpenses,capitalExpenditure,pharmacyCost,grossProfit,cashOutflow,earnedCashCollection,earnedUpiCollection,earnedBankCollection,earnedCollection,ipdAdvanceCash,ipdAdvanceUpi,ipdAdvanceBank,cashCollection,upiCollection,bankCollection,totalCollection,stockValue,margin:revenue>0?(grossProfit/revenue)*100:0};
+  return {opd,admissions,bills,ipdBillItems,diagnostics,diagnosticBills,exp,operatingExpenseRows,capitalExpenses,excludedPharmacyExpenses,sales,pharmacySales,purchases,opdRevenue,ipdRevenue,diagnosticRevenue,pharmacyRevenue,revenue,ipdAdvanceReceived,ipdDepositCollection:ipdAdvanceReceived,operatingExpenses,capitalExpenditure,excludedPharmacyExpense,pharmacyCost,grossProfit,cashOutflow,earnedCashCollection,earnedUpiCollection,earnedBankCollection,earnedCollection,ipdAdvanceCash,ipdAdvanceUpi,ipdAdvanceBank,cashCollection,upiCollection,bankCollection,totalCollection,stockValue,margin:revenue>0?(grossProfit/revenue)*100:0};
 }

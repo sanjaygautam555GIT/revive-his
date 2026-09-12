@@ -64,6 +64,7 @@ function renderExecutiveReport(out,d){
       <div class="card"><span>Pharmacy COGS</span><strong>${money(d.pharmacyCost)}</strong></div>
       <div class="card"><span>Diagnostic Revenue</span><strong>${money(d.diagnosticRevenue)}</strong></div>
       <div class="card"><span>Capital Expenditure</span><strong>${money(d.capitalExpenditure)}</strong></div>
+      <div class="card"><span>Excluded Duplicate Pharmacy Expense</span><strong>${money(d.excludedPharmacyExpense)}</strong></div>
       <div class="card"><span>Net Profit / Loss</span><strong>${money(d.grossProfit)}</strong></div>
       <div class="card"><span>Profit Margin</span><strong>${d.margin.toFixed(1)}%</strong></div>
       <div class="card"><span>Cash</span><strong>${money(d.cashCollection)}</strong></div>
@@ -110,9 +111,9 @@ function renderExpenseReport(out,d){
       <div class="card"><span>Total Cash Outflow</span><strong>${money(d.cashOutflow)}</strong></div>
       <div class="card"><span>Expense Entries</span><strong>${d.exp.length}</strong></div>
     </div>
-    <div class="panel"><p><b>Note:</b> Pharmacy purchases and equipment purchases are cash outflows, not operating expenses. Profit recognizes IPD medicine cost when the corresponding final IPD bill is recorded.</p></div>
+    <div class="panel"><p><b>Note:</b> Pharmacy stock entered under Pharmacy Expense is excluded because medicine cost is already recorded through COGS and the Purchase Register. Equipment purchases are capital expenditure. Profit recognizes IPD medicine cost when the corresponding final IPD bill is recorded.</p></div>
     <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
-      ${reportTable("Operating Expenses by Category",d.expenseByCategory.filter(r=>String(r.key).toLowerCase()!=="equipment purchase").map(r=>[r.key,money(r.value),""]))}
+      ${reportTable("Operating Expenses by Category",d.expenseByCategory.filter(r=>!["equipment purchase","pharmacy expense"].includes(String(r.key).toLowerCase())).map(r=>[r.key,money(r.value),""]))}
       ${reportTable("Purchases by Supplier",d.purchaseBySupplier.map(r=>[r.key,money(r.value),""]))}
     </div>`;
 }
