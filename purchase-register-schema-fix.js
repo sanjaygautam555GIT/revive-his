@@ -4,8 +4,8 @@
 async function loadPurchaseSuggestions(){
   const [supplierRes,purchaseRes,stockRes]=await Promise.all([
     db.from("suppliers").select("*").order("supplier_name"),
-    db.from("pharmacy_purchases").select("supplier,medicine_name,category,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
-    db.from("pharmacy_stock").select("medicine_name,category,purchase_price,sale_price,mrp").order("medicine_name").limit(1000)
+    db.from("pharmacy_purchases").select("supplier,medicine_name,category,units_per_pack,dispensing_unit,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
+    db.from("pharmacy_stock").select("medicine_name,category,units_per_pack,dispensing_unit,purchase_price,sale_price,mrp").order("medicine_name").limit(1000)
   ]);
 
   purchaseSuppliers=supplierRes.data||[];
@@ -46,6 +46,8 @@ async function saveCompletePurchaseInvoice(){
   const purchaseRows=purchaseInvoiceItems.map(item=>({
     medicine_name:item.medicine_name,
     category:item.category,
+    units_per_pack:Math.max(1,Number(item.units_per_pack||1)),
+    dispensing_unit:item.unit,
     batch_no:item.batch_no,
     expiry_date:item.expiry_date,
     quantity:item.quantity,
@@ -66,6 +68,8 @@ async function saveCompletePurchaseInvoice(){
     return {
       medicine_name:item.medicine_name,
       category:item.category,
+      units_per_pack:divisor,
+      dispensing_unit:item.sale_unit,
       batch_no:item.batch_no,
       expiry_date:item.expiry_date,
       purchase_price:Number(item.purchase_price||0)/divisor,
