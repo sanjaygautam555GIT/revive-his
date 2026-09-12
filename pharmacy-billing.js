@@ -65,7 +65,7 @@ async function renderPharmacyBilling(){
   <div class="panel table-wrap"><h3>Recent Pharmacy Bills</h3><table><thead><tr><th>Date</th><th>Patient</th><th>Type</th><th>Total</th><th>Paid</th><th>Mode</th><th>Print</th></tr></thead><tbody id="salesRows"></tbody></table></div>`;
 
   document.getElementById('phImport').onclick=importPharmacyPatient;
-  document.getElementById('phSearch').onkeydown=e=>{if(e.key==='Enter')importPharmacyPatient();};
+  document.getElementById('phSearch').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();importPharmacyPatient();}};
   document.getElementById('phSource').onchange=()=>{if(document.getElementById('phSource').value==='Walk-in')clearPharmacyPatient();};
   document.getElementById('billStockSelect').onchange=selectBillingStock;
   document.getElementById('billQty').oninput=updateBillLineTotal;
@@ -119,28 +119,29 @@ async function loadIPDAdvance(admission){
 
 async function importPharmacyPatient(){
   const source=document.getElementById('phSource').value;
-  const q=document.getElementById('phSearch').value.trim().toLowerCase();
+  const q=document.getElementById('phSearch').value.trim();
   const msg=document.getElementById('phMsg');
   if(source==='Walk-in'){clearPharmacyPatient();msg.innerHTML="<p class='success'>Walk-in selected.</p>";return;}
   if(!q){msg.innerHTML="<p class='error'>Enter search text.</p>";return;}
   try{
     if(source==='IPD'){
-      const rows=await fetchAll('ipd_admission');
-      const r=rows.find(x=>isActiveAdmission(x)&&[x.admission_id,x.uhid,x.patient_name,x.mobile].join(' ').toLowerCase().includes(q));
-      if(!r){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
-      currentPharmacyPatient={type:'IPD',ref:r.admission_id||String(r.id),uhid:r.uhid||'',name:r.patient_name||''};
-      document.getElementById('billPatientName').value=r.patient_name||'';document.getElementById('billPatientType').value='IPD';document.getElementById('billUhid').value=r.uhid||'';document.getElementById('billRef').value=r.admission_id||String(r.id);document.getElementById('billMobile').value=r.mobile||'';
-      msg.innerHTML=`<div class='sync-box'><b>IPD patient imported</b><br>${r.patient_name||''} · ${r.uhid||''} · ${r.admission_id||''}</div>`;
-      await loadIPDAdvance(r);
+      const matches=filterPatientChoices((await fetchAll('ipd_admission')).filter(isActiveAdmission),q,['admission_id','id','uhid','patient_name','mobile']);
+      if(!matches.length){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
+      renderPatientChoices(msg,matches,{recordLabel:'active admission',detailLabel:'Admission / Ward',detailValue:r=>[r.admission_id||r.id,[r.ward_type,r.bed_no].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')},r=>selectPharmacyPatient(r,'IPD',msg));
     }else{
-      const rows=await fetchAll('opd_visits');
-      const r=rows.find(x=>[x.visit_id,x.uhid,x.patient_name,x.mobile].join(' ').toLowerCase().includes(q));
-      if(!r){msg.innerHTML="<p class='error'>No OPD visit found.</p>";return;}
-      currentPharmacyPatient={type:'OPD',ref:r.visit_id||'',uhid:r.uhid||'',name:r.patient_name||''};
-      document.getElementById('billPatientName').value=r.patient_name||'';document.getElementById('billPatientType').value='OPD';document.getElementById('billUhid').value=r.uhid||'';document.getElementById('billRef').value=r.visit_id||'';document.getElementById('billMobile').value=r.mobile||'';
-      msg.innerHTML=`<div class='sync-box'><b>OPD patient imported</b><br>${r.patient_name||''} · ${r.uhid||''} · ${r.visit_id||''}</div>`;
+      const matches=filterPatientChoices(await fetchAll('opd_visits'),q,['visit_id','uhid','patient_name','mobile']);
+      if(!matches.length){msg.innerHTML="<p class='error'>No OPD visit found.</p>";return;}
+      renderPatientChoices(msg,matches,{recordLabel:'OPD visit',detailLabel:'Visit / Date',detailValue:r=>[r.visit_id,r.visit_date||rowDate(r)].filter(Boolean).join(' · ')},r=>selectPharmacyPatient(r,'OPD',msg));
     }
   }catch(err){msg.innerHTML=`<p class='error'>Patient import failed: ${err.message}</p>`;}
+}
+
+async function selectPharmacyPatient(r,type,msg){
+  const ref=type==='IPD'?(r.admission_id||String(r.id)):r.visit_id||'';
+  currentPharmacyPatient={type,ref,uhid:r.uhid||'',name:r.patient_name||''};
+  document.getElementById('billPatientName').value=r.patient_name||'';document.getElementById('billPatientType').value=type;document.getElementById('billUhid').value=r.uhid||'';document.getElementById('billRef').value=ref;document.getElementById('billMobile').value=r.mobile||'';
+  msg.innerHTML=`<div class='sync-box'><b>${type} patient imported</b><br>${escapePatientChoice(r.patient_name||'')} · ${escapePatientChoice(r.uhid||'')} · ${escapePatientChoice(ref)}</div>`;
+  if(type==='IPD')await loadIPDAdvance(r);else updatePharmacyPaymentMode();
 }
 
 async function loadBillingStock(){
