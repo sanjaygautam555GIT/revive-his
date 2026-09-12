@@ -1,7 +1,7 @@
 /* Revive IPD loader + advance top-up extension */
 (function(){
   var x=new XMLHttpRequest();
-  x.open('GET','ipd-base.js?v=20260909-admission-consultant-fix',false);
+  x.open('GET','ipd-base.js?v=20260912-patient-result-selection',false);
   x.send(null);
   if(x.status>=200&&x.status<300){(0,eval)(x.responseText);}else{throw new Error('Unable to load IPD base module');}
 
