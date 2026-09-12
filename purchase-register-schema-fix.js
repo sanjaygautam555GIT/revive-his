@@ -4,8 +4,8 @@
 async function loadPurchaseSuggestions(){
   const [supplierRes,purchaseRes,stockRes]=await Promise.all([
     db.from("suppliers").select("*").order("supplier_name"),
-    db.from("pharmacy_purchases").select("supplier,medicine_name,category,purchase_price,sale_price,mrp").order("created_at",{ascending:false}).limit(1000),
-    db.from("pharmacy_stock").select("medicine_name,category,purchase_price,sale_price,mrp").order("medicine_name").limit(1000)
+    db.from("pharmacy_purchases").select("supplier,medicine_name,category,purchase_price,sale_price,mrp,units_per_pack,dispensing_unit").order("created_at",{ascending:false}).limit(1000),
+    db.from("pharmacy_stock").select("medicine_name,category,purchase_price,sale_price,mrp,units_per_pack,dispensing_unit").order("medicine_name").limit(1000)
   ]);
 
   purchaseSuppliers=supplierRes.data||[];
@@ -58,6 +58,8 @@ async function saveCompletePurchaseInvoice(){
     invoice_date:invoiceDate,
     payment_status:status,
     payment_mode:mode,
+    units_per_pack:Math.max(1,Number(item.units_per_pack||1)),
+    dispensing_unit:item.unit,
     created_at:now
   }));
 
@@ -72,6 +74,8 @@ async function saveCompletePurchaseInvoice(){
       mrp:Number(item.mrp||0)/divisor,
       sale_price:item.sale_price,
       quantity:item.total_units,
+      units_per_pack:divisor,
+      dispensing_unit:item.sale_unit,
       created_at:now
     };
   });
