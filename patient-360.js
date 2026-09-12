@@ -7,7 +7,8 @@
   function samePatient(record,p){
     const puhid=norm(patientUHID(p)), pmobile=norm(p.mobile);
     const ruhid=norm(record.uhid||record.patient_id), rmobile=norm(record.mobile);
-    return !!((puhid&&ruhid===puhid)||(pmobile&&rmobile===pmobile));
+    if(puhid&&ruhid)return ruhid===puhid;
+    return !!(pmobile&&rmobile===pmobile);
   }
   function eventDate(r,fields=[]){
     for(const f of fields){if(r?.[f])return String(r[f]).slice(0,10)}
