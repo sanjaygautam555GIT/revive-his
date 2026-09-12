@@ -40,7 +40,7 @@ async function renderIPDCharges(){
   `;
   document.getElementById("chargeDate").value=todayISO();
   document.getElementById("ipdChargeSearchBtn").onclick=searchIPDChargeAdmission;
-  document.getElementById("ipdChargeSearch").onkeydown=e=>{if(e.key==="Enter")searchIPDChargeAdmission()};
+  document.getElementById("ipdChargeSearch").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();searchIPDChargeAdmission()}};
   document.getElementById("ipdChargeForm").onsubmit=saveIPDCharge;
   document.getElementById("chargeCategory").onchange=applyChargePreset;
   document.getElementById("bedType").onchange=applyChargePreset;
@@ -102,16 +102,18 @@ function applyChargePreset(){
 }
 
 async function searchIPDChargeAdmission(){
-  const q=document.getElementById("ipdChargeSearch").value.trim().toLowerCase();
+  const q=document.getElementById("ipdChargeSearch").value.trim();
   const msg=document.getElementById("ipdChargeSearchResult");
   if(!q){msg.innerHTML="<p class='error'>Enter admission ID, UHID or patient name.</p>";return;}
-  const rows=await fetchAll("ipd_admission");
-  const active=rows.filter(r=>(r.status||"Admitted")!=="Discharged");
-  const admission=active.find(r=>[r.admission_id,r.uhid,r.patient_name,r.mobile].join(" ").toLowerCase().includes(q));
-  if(!admission){msg.innerHTML="<p class='error'>No active admission found.</p>";return;}
+  const matches=filterPatientChoices((await fetchAll("ipd_admission")).filter(r=>!['discharged','final billed','cancelled','closed'].includes(String(r.status||'Admitted').trim().toLowerCase())),q,["admission_id","id","uhid","patient_name","mobile"]);
+  if(!matches.length){msg.innerHTML="<p class='error'>No active admission found.</p>";return;}
+  renderPatientChoices(msg,matches,{recordLabel:"active admission",detailLabel:"Admission / Ward",detailValue:r=>[r.admission_id||r.id,[r.ward_type,r.bed_no].filter(Boolean).join(" / ")].filter(Boolean).join(" · ")},admission=>selectIPDChargeAdmission(admission,msg));
+}
+
+async function selectIPDChargeAdmission(admission,msg){
   ipdChargeState.admission=admission;
   document.getElementById("ipdChargeWorkspace").classList.remove("hidden");
-  msg.innerHTML=`<p class='success'>Admission loaded: ${admission.patient_name||"Patient"}</p>`;
+  msg.innerHTML=`<p class='success'>Admission loaded: ${escapePatientChoice(admission.patient_name||"Patient")}</p>`;
   renderChargeAdmissionSummary();
   await loadIPDCharges();
 }
