@@ -1,5 +1,4 @@
-// Compatibility patch for databases without units_per_pack columns.
-// Conversion remains in the form calculation but is not written to Supabase.
+// Pharmacy stock pack conversion backed by units_per_pack in Supabase.
 
 function stockMatchKey(name,batch){
   return `${String(name||"").trim().toLowerCase()}||${String(batch||"").trim().toLowerCase()}`;
@@ -40,7 +39,8 @@ async function loadSimpleStock(){
     const p=r._purchase;
     const cfg=STOCK_ITEM_CONFIG[r.category]||STOCK_ITEM_CONFIG.Other;
     const purchaseQty=p?Number(p.quantity||0):null;
-    const unitsPerPack=(p&&purchaseQty>0)?Number(r.quantity||0)/purchaseQty:1;
+    const storedPack=Number(r.units_per_pack||p?.units_per_pack||0);
+    const unitsPerPack=storedPack>=1?storedPack:((p&&purchaseQty>0)?Number(r.quantity||0)/purchaseQty:1);
     return `<tr>
       <td>${r.category||"Other"}</td>
       <td>${r.medicine_name||""}</td>
@@ -68,8 +68,9 @@ function editStockRow(id){
   const c=STOCK_ITEM_CONFIG[category];
   const p=row._purchase||null;
   const purchaseQty=p?Number(p.quantity||0):Number(row.quantity||0);
-  const inferredN=(p&&purchaseQty>0)?Math.max(1,Number(row.quantity||0)/purchaseQty):1;
-  const n=c.convert?inferredN:1;
+  const storedPack=Number(row.units_per_pack||p?.units_per_pack||0);
+  const legacyPack=(p&&purchaseQty>0)?Math.max(1,Number(row.quantity||0)/purchaseQty):1;
+  const n=c.convert?(storedPack>=1?storedPack:legacyPack):1;
 
   document.getElementById("editStockCategory").value=category;
   document.getElementById("editStockName").value=row.medicine_name||"";
@@ -122,7 +123,9 @@ async function saveStockEdit(){
     quantity:totalQty,
     purchase_price:purchaseRate/n,
     mrp:mrpPack/n,
-    sale_price:salePrice
+    sale_price:salePrice,
+    units_per_pack:n,
+    dispensing_unit:c.sell
   };
 
   const purchaseMatch=await findMatchingPurchaseForStock(original);
@@ -143,7 +146,9 @@ async function saveStockEdit(){
       purchase_price:purchaseRate,
       mrp:mrpPack,
       sale_price:salePrice,
-      total_amount:purchaseQty*purchaseRate
+      total_amount:purchaseQty*purchaseRate,
+      units_per_pack:n,
+      dispensing_unit:c.buy
     };
     const {data:pData,error:pError}=await db.from("pharmacy_purchases").update(purchasePayload).eq("id",purchaseMatch.row.id).select();
     if(pError)syncMessage=`<br><span class='error'>Purchase Register sync failed: ${pError.message}</span>`;
