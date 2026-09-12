@@ -5,9 +5,9 @@
   }
   function norm(v){return String(v||'').trim().toLowerCase()}
   function samePatient(record,p){
-    const puhid=norm(patientUHID(p)), pmobile=norm(p.mobile), pname=norm(patientName(p));
-    const ruhid=norm(record.uhid||record.patient_id), rmobile=norm(record.mobile), rname=norm(record.patient_name||record.name);
-    return !!((puhid&&ruhid===puhid)||(pmobile&&rmobile===pmobile)||(pname&&rname===pname));
+    const puhid=norm(patientUHID(p)), pmobile=norm(p.mobile);
+    const ruhid=norm(record.uhid||record.patient_id), rmobile=norm(record.mobile);
+    return !!((puhid&&ruhid===puhid)||(pmobile&&rmobile===pmobile));
   }
   function eventDate(r,fields=[]){
     for(const f of fields){if(r?.[f])return String(r[f]).slice(0,10)}
