@@ -66,8 +66,8 @@ async function searchPatients(){
     const map={};
     data.patients.forEach(p=>{const key=patientKey(p);if(!key)return;if(!map[key])map[key]={...p,visits:[],pharmacy:[],ipd:[]};map[key]={...map[key],...p}});
     data.opdVisits.forEach(v=>{const key=(v.uhid||v.patient_id||v.mobile||"").toString();if(!key)return;if(!map[key])map[key]={uhid:v.uhid,patient_id:v.patient_id,name:v.patient_name,patient_name:v.patient_name,age:v.age,sex:v.sex,mobile:v.mobile,visits:[],pharmacy:[],ipd:[]};map[key].visits.push(v)});
-    data.sales.forEach(s=>{const mobile=s.mobile||"";const key=Object.keys(map).find(k=>(map[k].mobile||"")===mobile||patientName(map[k])===s.patient_name)||mobile||s.patient_name;if(!key)return;if(!map[key])map[key]={name:s.patient_name,patient_name:s.patient_name,mobile,visits:[],pharmacy:[],ipd:[]};map[key].pharmacy.push(s)});
-    data.ipd.forEach(x=>{const key=Object.keys(map).find(k=>(map[k].mobile||"")===x.mobile||patientName(map[k])===x.patient_name)||x.mobile||x.patient_name;if(!key)return;if(!map[key])map[key]={name:x.patient_name,patient_name:x.patient_name,mobile:x.mobile,visits:[],pharmacy:[],ipd:[]};map[key].ipd.push(x)});
+    data.sales.forEach(s=>{const uhid=s.uhid||s.patient_id||"",mobile=s.mobile||"";const key=Object.keys(map).find(k=>(uhid&&patientUHID(map[k])===uhid)||(mobile&&(map[k].mobile||"")===mobile))||uhid||mobile||`sale-${s.id}`;if(!key)return;if(!map[key])map[key]={name:s.patient_name,patient_name:s.patient_name,mobile,uhid,visits:[],pharmacy:[],ipd:[]};map[key].pharmacy.push(s)});
+    data.ipd.forEach(x=>{const uhid=x.uhid||x.patient_id||"",mobile=x.mobile||"";const key=Object.keys(map).find(k=>(uhid&&patientUHID(map[k])===uhid)||(mobile&&(map[k].mobile||"")===mobile))||uhid||mobile||`ipd-${x.id}`;if(!key)return;if(!map[key])map[key]={name:x.patient_name,patient_name:x.patient_name,mobile:x.mobile,uhid,visits:[],pharmacy:[],ipd:[]};map[key].ipd.push(x)});
     patientSearchList=Object.values(map).sort((a,b)=>new Date(lastVisitDate(b)||0)-new Date(lastVisitDate(a)||0));
     window.__patientMasterMap=map;
     applyPatientSearch();
