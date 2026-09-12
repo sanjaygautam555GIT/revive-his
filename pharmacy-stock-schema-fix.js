@@ -40,8 +40,7 @@ async function loadSimpleStock(){
     const p=r._purchase;
     const cfg=STOCK_ITEM_CONFIG[r.category]||STOCK_ITEM_CONFIG.Other;
     const purchaseQty=p?Number(p.quantity||0):null;
-    const storedPack=Number(r.units_per_pack||p?.units_per_pack||0);
-    const unitsPerPack=storedPack>=1?storedPack:((p&&purchaseQty>0)?Number(r.quantity||0)/purchaseQty:1);
+    const unitsPerPack=(p&&purchaseQty>0)?Number(r.quantity||0)/purchaseQty:1;
     return `<tr>
       <td>${r.category||"Other"}</td>
       <td>${r.medicine_name||""}</td>
@@ -69,9 +68,8 @@ function editStockRow(id){
   const c=STOCK_ITEM_CONFIG[category];
   const p=row._purchase||null;
   const purchaseQty=p?Number(p.quantity||0):Number(row.quantity||0);
-  const storedPack=Number(row.units_per_pack||p?.units_per_pack||0);
-  const legacyPack=(p&&purchaseQty>0)?Math.max(1,Number(row.quantity||0)/purchaseQty):1;
-  const n=c.convert?(storedPack>=1?storedPack:legacyPack):1;
+  const inferredN=(p&&purchaseQty>0)?Math.max(1,Number(row.quantity||0)/purchaseQty):1;
+  const n=c.convert?inferredN:1;
 
   document.getElementById("editStockCategory").value=category;
   document.getElementById("editStockName").value=row.medicine_name||"";
@@ -122,8 +120,6 @@ async function saveStockEdit(){
     batch_no:document.getElementById("editStockBatch").value.trim()||null,
     expiry_date:document.getElementById("editStockExpiry").value||null,
     quantity:totalQty,
-    units_per_pack:n,
-    dispensing_unit:c.sell,
     purchase_price:purchaseRate/n,
     mrp:mrpPack/n,
     sale_price:salePrice
@@ -144,8 +140,6 @@ async function saveStockEdit(){
       batch_no:payload.batch_no,
       expiry_date:payload.expiry_date,
       quantity:purchaseQty,
-      units_per_pack:n,
-      dispensing_unit:c.buy,
       purchase_price:purchaseRate,
       mrp:mrpPack,
       sale_price:salePrice,
