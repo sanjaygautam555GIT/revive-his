@@ -14,12 +14,12 @@ async function renderPharmacyBillingLinked(){
     </div><hr>`);
   window.currentPharmacyPatient=null;
   document.getElementById('phImportBtn').onclick=importPatientForPharmacy;
-  document.getElementById('phPatientSearch').onkeydown=e=>{if(e.key==='Enter')importPatientForPharmacy()};
+  document.getElementById('phPatientSearch').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();importPatientForPharmacy()}};
 }
 
 async function importPatientForPharmacy(){
   const source=document.getElementById('phPatientSource').value;
-  const q=document.getElementById('phPatientSearch').value.trim().toLowerCase();
+  const q=document.getElementById('phPatientSearch').value.trim();
   const msg=document.getElementById('phPatientMsg');
   window.currentPharmacyPatient=null;
   if(source==='Walk-in'){
@@ -30,23 +30,32 @@ async function importPatientForPharmacy(){
   }
   if(!q){msg.innerHTML="<p class='error'>Enter search text.</p>";return;}
   if(source==='IPD'){
-    const rows=await fetchAll('ipd_admission');
-    const a=rows.find(r=>(r.status||'Admitted')!=='Discharged' && [r.admission_id,r.uhid,r.patient_name,r.mobile].join(' ').toLowerCase().includes(q));
-    if(!a){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
+    const rows=(await fetchAll('ipd_admission')).filter(r=>!['discharged','final billed','cancelled','closed'].includes(String(r.status||'Admitted').trim().toLowerCase()));
+    const matches=filterPatientChoices(rows,q,['admission_id','id','uhid','patient_name','mobile']);
+    if(!matches.length){msg.innerHTML="<p class='error'>No active IPD admission found.</p>";return;}
+    renderPatientChoices(msg,matches,{recordLabel:'active admission',detailLabel:'Admission / Ward',detailValue:r=>[r.admission_id||r.id,[r.ward_type,r.bed_no].filter(Boolean).join(' / ')].filter(Boolean).join(' · ')},a=>selectLinkedPharmacyPatient(a,'IPD',msg));
+  }else{
+    const matches=filterPatientChoices(await fetchAll('opd_visits'),q,['visit_id','uhid','patient_name','mobile']);
+    if(!matches.length){msg.innerHTML="<p class='error'>No OPD visit found.</p>";return;}
+    renderPatientChoices(msg,matches,{recordLabel:'OPD visit',detailLabel:'Visit / Date',detailValue:r=>[r.visit_id,r.visit_date||rowDate(r)].filter(Boolean).join(' · ')},v=>selectLinkedPharmacyPatient(v,'OPD',msg));
+  }
+}
+
+function selectLinkedPharmacyPatient(record,type,msg){
+  if(type==='IPD'){
+    const a=record;
     window.currentPharmacyPatient={type:'IPD',admission_id:a.admission_id||String(a.id),uhid:a.uhid||'',patient_name:a.patient_name||''};
     document.getElementById('billPatientName').value=a.patient_name||'';
     document.getElementById('billPatientType').value='IPD';
     document.getElementById('billPaymentStatus').value='Due';
     document.getElementById('billAmountPaid').value=0;
-    msg.innerHTML=`<div class='sync-box'><b>IPD patient imported</b><br>${a.patient_name||''} · ${a.uhid||''} · ${a.admission_id||''}</div>`;
+    msg.innerHTML=`<div class='sync-box'><b>IPD patient imported</b><br>${escapePatientChoice(a.patient_name||'')} · ${escapePatientChoice(a.uhid||'')} · ${escapePatientChoice(a.admission_id||'')}</div>`;
   }else{
-    const rows=await fetchAll('opd_visits');
-    const v=rows.find(r=>[r.visit_id,r.uhid,r.patient_name,r.mobile].join(' ').toLowerCase().includes(q));
-    if(!v){msg.innerHTML="<p class='error'>No OPD visit found.</p>";return;}
+    const v=record;
     window.currentPharmacyPatient={type:'OPD',visit_id:v.visit_id||'',uhid:v.uhid||'',patient_name:v.patient_name||''};
     document.getElementById('billPatientName').value=v.patient_name||'';
     document.getElementById('billPatientType').value='OPD';
-    msg.innerHTML=`<div class='sync-box'><b>OPD patient imported</b><br>${v.patient_name||''} · ${v.uhid||''} · ${v.visit_id||''}</div>`;
+    msg.innerHTML=`<div class='sync-box'><b>OPD patient imported</b><br>${escapePatientChoice(v.patient_name||'')} · ${escapePatientChoice(v.uhid||'')} · ${escapePatientChoice(v.visit_id||'')}</div>`;
   }
 }
 
