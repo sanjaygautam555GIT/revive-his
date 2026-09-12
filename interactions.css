@@ -19,3 +19,27 @@ table tbody tr:hover{background:#f7fbfc!important}
 @keyframes hsPulse{0%{transform:scale(1)}50%{transform:scale(.975)}100%{transform:scale(1)}}
 @keyframes hsRipple{to{transform:scale(3.2);opacity:0}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+
+/* Stable sidebar navigation: hover must not look like the selected page. */
+#mainNav button,
+#mainNav button:hover,
+#mainNav button:active{
+  transform:none!important;
+  font-size:14px!important;
+}
+#mainNav button:not(.active):hover{
+  background:rgba(255,255,255,.09)!important;
+  border-color:rgba(255,255,255,.12)!important;
+  box-shadow:none!important;
+  color:#fff!important;
+}
+#mainNav button.active{
+  background:linear-gradient(90deg,#0aa9a2,#078c88)!important;
+  border-color:rgba(45,212,191,.28)!important;
+  box-shadow:0 8px 18px rgba(0,0,0,.14)!important;
+}
+#mainNav button .nav-icon,
+#mainNav button span{
+  font-size:inherit;
+}
