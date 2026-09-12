@@ -50,6 +50,7 @@ let reviveRealtimeBusy=false;
 let reviveRealtimePending=false;
 function reviveUserIsEditing(){const el=document.activeElement;if(!el)return false;const tag=(el.tagName||"").toLowerCase();return tag==="input"||tag==="textarea"||tag==="select"||el.isContentEditable}
 function reviveActiveViewName(){const active=document.querySelector("#mainNav button.active");return active?.dataset?.view||null}
+function reviveViewSupportsLiveRefresh(name){return ["dashboard","doctorDashboard","currentlyAdmitted"].includes(name)}
 function reviveNodeKey(node){if(node?.nodeType!==1)return null;return node.id||node.dataset?.id||node.dataset?.key||node.dataset?.patientId||node.dataset?.admissionId||null}
 function reviveSyncAttributes(live,fresh){Array.from(live.attributes||[]).forEach(a=>{if(!fresh.hasAttribute(a.name))live.removeAttribute(a.name)});Array.from(fresh.attributes||[]).forEach(a=>{if(live.getAttribute(a.name)!==a.value)live.setAttribute(a.name,a.value)})}
 function reviveMorph(live,fresh){
@@ -74,6 +75,7 @@ async function reviveDifferentialRefresh(){
   if(reviveRealtimeBusy||document.hidden||!currentUser){reviveRealtimePending=true;return}
   if(reviveUserIsEditing()){reviveRealtimePending=true;return}
   const name=reviveActiveViewName();if(!name||!VIEWS[name])return;
+  if(!reviveViewSupportsLiveRefresh(name)){reviveRealtimePending=false;return;}
   const live=document.getElementById(name+"View");if(!live)return;
   reviveRealtimeBusy=true;
   const originalId=live.id;const sandbox=document.createElement("section");
