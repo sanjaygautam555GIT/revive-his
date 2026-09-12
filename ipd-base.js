@@ -56,7 +56,7 @@ async function renderIPD(){
   document.getElementById("ipdAdmissionDate").value=todayISO();
   document.getElementById("ipdDepositDate").value=todayISO();
   document.getElementById("ipdSearchBtn").onclick=searchIPDPatient;
-  document.getElementById("ipdSearchTerm").onkeydown=e=>{if(e.key==="Enter")searchIPDPatient()};
+  document.getElementById("ipdSearchTerm").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();searchIPDPatient()}};
   document.getElementById("ipdForm").onsubmit=saveIPDAdmission;
   document.getElementById("ipdResetBtn").onclick=clearIPDForm;
   document.getElementById("ipdConsultant").onchange=applyIPDDoctorDepartment;
@@ -87,10 +87,30 @@ async function searchIPDPatient(){
   const q=term.toLowerCase();
   const msg=document.getElementById("ipdSearchResult");
   if(!term){msg.innerHTML="<p class='error'>Enter patient name, mobile or UHID to search.</p>";return;}
-  const {data,error}=await db.from("patient").select("*").order("created_at",{ascending:false}).limit(500);
-  if(error){msg.innerHTML=`<p class='error'>Search failed: ${error.message}</p>`;return;}
-  const p=(data||[]).find(x=>[(x.name||x.patient_name||""),(x.mobile||""),(x.uhid||x.patient_id||"")].join(" ").toLowerCase().includes(q));
-  if(!p){msg.innerHTML="<p class='error'>No patient found. Register patient in OPD first or enter details manually.</p>";document.getElementById("ipdMobile").value=term;return;}
+  msg.innerHTML="<p>Searching patient records...</p>";
+  let patients;
+  try{patients=await fetchAll("patient");}
+  catch(error){msg.innerHTML=`<p class='error'>Search failed: ${escapeIPDText(error.message)}</p>`;return;}
+  const matches=(patients||[]).filter(x=>[
+    x.name||x.patient_name||"",x.mobile||"",x.uhid||x.patient_id||""
+  ].some(value=>String(value).toLowerCase().includes(q))).sort((a,b)=>{
+    const aName=String(a.name||a.patient_name||"").trim().toLowerCase();
+    const bName=String(b.name||b.patient_name||"").trim().toLowerCase();
+    const exactDifference=Number(bName===q)-Number(aName===q);
+    if(exactDifference)return exactDifference;
+    return String(b.created_at||"").localeCompare(String(a.created_at||""));
+  });
+  if(!matches.length){msg.innerHTML="<p class='error'>No patient found. Register patient in OPD first or enter details manually.</p>";return;}
+  window.ipdPatientSearchMatches=matches;
+  msg.innerHTML=`<div class="sync-box"><b>${matches.length} patient${matches.length===1?"":"s"} found</b><br><span>Select the correct patient using UHID, mobile, age and address.</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>UHID</th><th>Age / Sex</th><th>Mobile</th><th>Address</th><th>Action</th></tr></thead><tbody>${matches.map((p,index)=>`<tr><td><b>${escapeIPDText(p.name||p.patient_name||"Patient")}</b></td><td>${escapeIPDText(p.uhid||p.patient_id||"-")}</td><td>${escapeIPDText([p.age,p.sex||p.gender].filter(v=>v!==null&&v!==undefined&&v!=="").join(" / ")||"-")}</td><td>${escapeIPDText(p.mobile||"-")}</td><td>${escapeIPDText(p.address||"-")}</td><td><button type="button" class="ipd-select-patient" data-index="${index}">Select</button></td></tr>`).join("")}</tbody></table></div>`;
+  msg.querySelectorAll(".ipd-select-patient").forEach(button=>button.onclick=()=>selectIPDSearchPatient(Number(button.dataset.index)));
+}
+function escapeIPDText(value){return String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]))}
+async function selectIPDSearchPatient(index){
+  const p=(window.ipdPatientSearchMatches||[])[index];
+  const msg=document.getElementById("ipdSearchResult");
+  if(!p||!msg)return;
   await loadPatientIntoIPD(p,msg);
 }
 async function loadPatientIntoIPD(p,msg){
@@ -103,8 +123,8 @@ async function loadPatientIntoIPD(p,msg){
   document.getElementById("ipdAddress").value=p.address||"";
   const admissions=await fetchAll("ipd_admission");
   const uhid=p.uhid||p.patient_id||"";
-  const prev=admissions.filter(v=>(v.uhid&&v.uhid===uhid)||(v.mobile&&v.mobile===p.mobile)||(v.patient_name&&v.patient_name===(p.name||p.patient_name)));
-  msg.innerHTML=`<div class='sync-box'><b>Patient loaded</b><br>UHID: ${uhid||"-"} &nbsp; | &nbsp; Name: ${p.name||p.patient_name||"Patient"} &nbsp; | &nbsp; Age: ${p.age||"-"} &nbsp; | &nbsp; Previous IPD: ${prev.length}</div>`;
+  const prev=admissions.filter(v=>(uhid&&v.uhid===uhid)||(p.id&&String(v.patient_id||"")===String(p.id))||(!uhid&&!p.id&&p.mobile&&v.mobile===p.mobile));
+  msg.innerHTML=`<div class='sync-box'><b>Patient loaded</b><br>UHID: ${escapeIPDText(uhid||"-")} &nbsp; | &nbsp; Name: ${escapeIPDText(p.name||p.patient_name||"Patient")} &nbsp; | &nbsp; Age: ${escapeIPDText(p.age||"-")} &nbsp; | &nbsp; Previous IPD: ${prev.length}</div>`;
 }
 function generateAdmissionId(){return `IPD-${todayISO().replaceAll("-","")}-${String(Date.now()).slice(-4)}`}
 function generateIPDUHID(){return `RVH-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`}
@@ -183,7 +203,7 @@ async function saveIPDAdmission(e){
   await loadIPDRegister();
 }
 async function dischargeIPD(id){if(!confirm("Mark this patient as discharged?"))return;const {error}=await db.from("ipd_admission").update({status:"Discharged",discharge_date:todayISO()}).eq("id",id);if(error){alert("Discharge failed: "+error.message);return;}await loadIPDRegister();}
-function clearIPDForm(){document.getElementById("ipdForm").reset();document.getElementById("ipdPatientId").value="";document.getElementById("ipdUhid").value="";document.getElementById("ipdAdmissionId").value="";document.getElementById("ipdSearchResult").innerHTML="";document.getElementById("ipdMessage").innerHTML="";document.getElementById("ipdAdmissionDate").value=todayISO();document.getElementById("ipdDepositDate").value=todayISO();applyIPDDoctorDepartment();}
+function clearIPDForm(){window.ipdPatientSearchMatches=[];document.getElementById("ipdForm").reset();document.getElementById("ipdPatientId").value="";document.getElementById("ipdUhid").value="";document.getElementById("ipdAdmissionId").value="";document.getElementById("ipdSearchResult").innerHTML="";document.getElementById("ipdMessage").innerHTML="";document.getElementById("ipdAdmissionDate").value=todayISO();document.getElementById("ipdDepositDate").value=todayISO();applyIPDDoctorDepartment();}
 async function loadIPDRegister(){
   const body=document.getElementById("ipdRows");
   if(!body)return;
