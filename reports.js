@@ -20,10 +20,10 @@ async function renderReportsCenter(){
 }
 
 async function getReportData(from,to){
-  const [patients, admissions, ipdBills, expenses, pharmacySales, purchases, stock]=await Promise.all([
-    fetchAll("patient"),fetchAll("ipd_admission"),fetchAll("ipd_billing"),fetchAll("expenses"),fetchAll("pharmacy_sales"),fetchAll("pharmacy_purchases"),fetchAll("pharmacy_stock")
+  const [patients, opdVisits, admissions, ipdBills, ipdBillItems, diagnosticBills, expenses, pharmacySales, purchases, stock]=await Promise.all([
+    fetchAll("patient"),fetchAll("opd_visits"),fetchAll("ipd_admission"),fetchAll("ipd_billing"),fetchAll("ipd_bill_items"),fetchAll("diagnostic_bills"),fetchAll("expenses"),fetchAll("pharmacy_sales"),fetchAll("pharmacy_purchases"),fetchAll("pharmacy_stock")
   ]);
-  const summary=buildFinancialSummary({patients,ipdBills,expenses,pharmacySales,pharmacyPurchases:purchases,stock},from,to);
+  const summary=buildFinancialSummary({patients,opdVisits,ipdAdmissions:admissions,ipdBills,ipdBillItems,diagnosticBills,expenses,pharmacySales,pharmacyPurchases:purchases,stock},from,to);
   const ipd=admissions.filter(r=>dateInRange(r,"created_at",from,to));
   const groupSum=(rows,keyField,amountField)=>{
     const map={};
@@ -62,6 +62,8 @@ function renderExecutiveReport(out,d){
       <div class="card"><span>Total Revenue</span><strong>${money(d.revenue)}</strong></div>
       <div class="card"><span>Operating Expenses</span><strong>${money(d.operatingExpenses)}</strong></div>
       <div class="card"><span>Pharmacy COGS</span><strong>${money(d.pharmacyCost)}</strong></div>
+      <div class="card"><span>Diagnostic Revenue</span><strong>${money(d.diagnosticRevenue)}</strong></div>
+      <div class="card"><span>Capital Expenditure</span><strong>${money(d.capitalExpenditure)}</strong></div>
       <div class="card"><span>Net Profit / Loss</span><strong>${money(d.grossProfit)}</strong></div>
       <div class="card"><span>Profit Margin</span><strong>${d.margin.toFixed(1)}%</strong></div>
       <div class="card"><span>Cash</span><strong>${money(d.cashCollection)}</strong></div>
@@ -74,7 +76,7 @@ function renderExecutiveReport(out,d){
     </div>
     ${d.stockValue.highValueRows.length?`<div class="panel alert-box"><b>Check stock values</b><br>${d.stockValue.highValueRows.slice(0,5).map(r=>`${r.medicine_name}: qty ${r.quantity}, purchase ${money(r.purchase_price)}, value ${money(safeNumber(r.purchase_price)*safeNumber(r.quantity))}`).join("<br>")}</div>`:""}
     <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
-      ${reportTable("Revenue Summary",[["OPD",money(d.opdRevenue),d.opd.length+" records"],["IPD",money(d.ipdRevenue),d.bills.length+" bills"],["Pharmacy",money(d.pharmacyRevenue),d.sales.length+" bills"]])}
+      ${reportTable("Revenue Summary",[["OPD",money(d.opdRevenue),d.opd.length+" visits"],["IPD",money(d.ipdRevenue),d.bills.length+" finalized bills"],["Diagnostics",money(d.diagnosticRevenue),d.diagnostics.length+" non-IPD bills"],["Pharmacy",money(d.pharmacyRevenue),"non-IPD sales"]])}
       ${reportTable("Activity Summary",[["OPD Patients",d.opd.length,""],["IPD Admissions",d.ipd.length,""],["Pharmacy Bills",d.sales.length,""],["Purchase Rows",d.purchases.length,""]])}
     </div>`;
 }
@@ -85,6 +87,7 @@ function renderRevenueReport(out,d){
     <div class="grid cards">
       <div class="card"><span>OPD Revenue</span><strong>${money(d.opdRevenue)}</strong></div>
       <div class="card"><span>IPD Revenue</span><strong>${money(d.ipdRevenue)}</strong></div>
+      <div class="card"><span>Diagnostic Revenue</span><strong>${money(d.diagnosticRevenue)}</strong></div>
       <div class="card"><span>Pharmacy Revenue</span><strong>${money(d.pharmacyRevenue)}</strong></div>
       <div class="card"><span>Total Revenue</span><strong>${money(d.revenue)}</strong></div>
       <div class="card"><span>Pharmacy COGS</span><strong>${money(d.pharmacyCost)}</strong></div>
@@ -103,12 +106,13 @@ function renderExpenseReport(out,d){
     <div class="grid cards">
       <div class="card"><span>Operating Expenses</span><strong>${money(d.operatingExpenses)}</strong></div>
       <div class="card"><span>Pharmacy Purchases</span><strong>${money(purchaseTotal)}</strong></div>
+      <div class="card"><span>Capital Expenditure</span><strong>${money(d.capitalExpenditure)}</strong></div>
       <div class="card"><span>Total Cash Outflow</span><strong>${money(d.cashOutflow)}</strong></div>
       <div class="card"><span>Expense Entries</span><strong>${d.exp.length}</strong></div>
     </div>
-    <div class="panel"><p><b>Note:</b> Pharmacy purchase is shown as cash outflow/inventory purchase. Profit uses pharmacy COGS from medicines actually sold.</p></div>
+    <div class="panel"><p><b>Note:</b> Pharmacy purchases and equipment purchases are cash outflows, not operating expenses. Profit recognizes IPD medicine cost when the corresponding final IPD bill is recorded.</p></div>
     <div class="grid" style="grid-template-columns:repeat(2,1fr);margin-top:16px">
-      ${reportTable("Operating Expenses by Category",d.expenseByCategory.map(r=>[r.key,money(r.value),""]))}
+      ${reportTable("Operating Expenses by Category",d.expenseByCategory.filter(r=>String(r.key).toLowerCase()!=="equipment purchase").map(r=>[r.key,money(r.value),""]))}
       ${reportTable("Purchases by Supplier",d.purchaseBySupplier.map(r=>[r.key,money(r.value),""]))}
     </div>`;
 }
@@ -171,7 +175,7 @@ function renderTrendReport(out,d){
   const start=new Date(d.from); const end=new Date(d.to);
   for(let x=new Date(start);x<=end;x.setDate(x.getDate()+1)){days.push(x.toISOString().slice(0,10));}
   const daily=days.map(day=>{
-    const one=buildFinancialSummary({patients:d.opd,ipdBills:d.bills,expenses:d.exp,pharmacySales:d.sales,pharmacyPurchases:d.purchases,stock:d.stock},day,day);
+    const one=buildFinancialSummary({opdVisits:d.opd,ipdBills:d.bills,ipdBillItems:d.ipdBillItems,diagnosticBills:d.diagnosticBills,expenses:d.exp,pharmacySales:d.pharmacySales,pharmacyPurchases:d.purchases,stock:d.stock},day,day);
     return {day,revenue:one.revenue,expense:one.operatingExpenses,profit:one.grossProfit,pharmacy:one.pharmacyRevenue};
   });
   const best=daily.slice().sort((a,b)=>b.revenue-a.revenue)[0]||{};

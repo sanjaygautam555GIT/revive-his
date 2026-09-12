@@ -24,24 +24,28 @@ async function renderCashBook(){
 }
 
 async function getCashBookNumbers(date){
-  const [opd,ipdBills,admissions,sales,expenses,purchases]=await Promise.all([
-    fetchAll("patient"),fetchAll("ipd_billing"),fetchAll("ipd_admission"),fetchAll("pharmacy_sales"),fetchAll("expenses"),fetchAll("pharmacy_purchases")
+  const [opd,ipdBills,ipdBillItems,admissions,diagnosticBills,sales,expenses,purchases]=await Promise.all([
+    fetchAll("opd_visits"),fetchAll("ipd_billing"),fetchAll("ipd_bill_items"),fetchAll("ipd_admission"),fetchAll("diagnostic_bills"),fetchAll("pharmacy_sales"),fetchAll("expenses"),fetchAll("pharmacy_purchases")
   ]);
   const byDate=(r,field)=>(r[field]||rowDate(r)||"").slice(0,10)===date;
-  const opdToday=opd.filter(r=>byDate(r,"created_at"));
+  const opdToday=opd.filter(r=>byDate(r,"visit_date"));
   const ipdToday=ipdBills.filter(r=>byDate(r,"billing_date"));
   const admissionsToday=admissions.filter(r=>byDate(r,"created_at"));
   const salesToday=sales.filter(r=>byDate(r,"bill_date"));
   const expToday=expenses.filter(r=>byDate(r,"expense_date"));
   const purchasesToday=purchases.filter(r=>byDate(r,"invoice_date"));
+  const financial=buildFinancialSummary({opdVisits:opd,ipdAdmissions:admissions,ipdBills,ipdBillItems,diagnosticBills,expenses,pharmacySales:sales,pharmacyPurchases:purchases},date,date);
   const sum=(rows,field)=>rows.reduce((s,r)=>s+Number(r[field]||0),0);
   const modeSum=(rows,field,mode)=>rows.filter(r=>(r.payment_mode||"").toLowerCase()===mode).reduce((s,r)=>s+Number(r[field]||0),0);
   const bankModeSum=(rows,field)=>rows.filter(r=>(r.payment_mode||"").toLowerCase().includes("bank")).reduce((s,r)=>s+Number(r[field]||0),0);
 
-  const opdTotal=sum(opdToday,"amount");
-  const ipdTotal=sum(ipdToday,"total");
-  const pharmacyTotal=sum(salesToday,"amount_paid");
-  const expenseTotal=sum(expToday,"amount");
+  const opdTotal=financial.opdRevenue;
+  const ipdTotal=financial.ipdRevenue;
+  const diagnosticTotal=financial.diagnosticRevenue;
+  const pharmacyTotal=financial.pharmacyRevenue;
+  const expenseTotal=financial.operatingExpenses;
+  const pharmacyCost=financial.pharmacyCost;
+  const capitalExpenditure=financial.capitalExpenditure;
   const purchaseTotal=sum(purchasesToday,"total_amount");
 
   const opdCash=modeSum(opdToday,"amount","cash");
@@ -57,12 +61,12 @@ async function getCashBookNumbers(date){
   const cashCollection=opdCash+pharmCash;
   const upiCollection=opdUpi+pharmUpi;
   const bankCollection=opdBank+pharmBank;
-  const totalIncome=opdTotal+ipdTotal+pharmacyTotal;
-  const totalExpenses=expenseTotal;
+  const totalIncome=opdTotal+ipdTotal+diagnosticTotal+pharmacyTotal;
+  const totalExpenses=expenseTotal+pharmacyCost;
   const profit=totalIncome-totalExpenses;
   const profitMargin=totalIncome>0?(profit/totalIncome)*100:0;
 
-  return {date,opdToday,ipdToday,admissionsToday,salesToday,expToday,purchasesToday,opdTotal,ipdTotal,pharmacyTotal,expenseTotal,purchaseTotal,totalIncome,totalExpenses,profit,profitMargin,opdCash,opdUpi,opdBank,pharmCash,pharmUpi,pharmBank,expCash,expUpi,expBank,cashCollection,upiCollection,bankCollection};
+  return {date,opdToday,ipdToday,admissionsToday,salesToday,expToday,purchasesToday,opdTotal,ipdTotal,diagnosticTotal,pharmacyTotal,expenseTotal,pharmacyCost,capitalExpenditure,purchaseTotal,totalIncome,totalExpenses,profit,profitMargin,opdCash,opdUpi,opdBank,pharmCash,pharmUpi,pharmBank,expCash,expUpi,expBank,cashCollection,upiCollection,bankCollection};
 }
 
 async function loadCashBookDay(){
@@ -87,12 +91,15 @@ async function loadCashBookDay(){
         <div class="panel table-wrap"><h3>Revenue</h3><table><tbody>
           <tr><td>OPD Collection</td><td>${money(n.opdTotal)}</td><td>${n.opdToday.length} records</td></tr>
           <tr><td>IPD Billing</td><td>${money(n.ipdTotal)}</td><td>${n.ipdToday.length} bills</td></tr>
+          <tr><td>Diagnostics</td><td>${money(n.diagnosticTotal)}</td><td>non-IPD bills</td></tr>
           <tr><td>Pharmacy Collection</td><td>${money(n.pharmacyTotal)}</td><td>${n.salesToday.length} bills</td></tr>
           <tr><th>Total Income</th><th>${money(n.totalIncome)}</th><th></th></tr>
         </tbody></table></div>
 
         <div class="panel table-wrap"><h3>Expenses</h3><table><tbody>
           <tr><td>General Expenses</td><td>${money(n.expenseTotal)}</td><td>${n.expToday.length} entries</td></tr>
+          <tr><td>Pharmacy COGS</td><td>${money(n.pharmacyCost)}</td><td>matched to earned revenue</td></tr>
+          <tr><td>Equipment / Capital Purchase</td><td>${money(n.capitalExpenditure)}</td><td>cash outflow only</td></tr>
           <tr><td>Pharmacy Purchases</td><td>${money(n.purchaseTotal)}</td><td>${n.purchasesToday.length} purchase rows</td></tr>
           <tr><th>Total Recorded Expenses</th><th>${money(n.totalExpenses)}</th><th></th></tr>
         </tbody></table></div>
