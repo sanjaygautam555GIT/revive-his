@@ -51,6 +51,8 @@
     const target=event.target.closest("button,a,[role='button'],summary,.modern-kpi,.dashboard-alert-card,table tbody tr");
     if(!target||target.hasAttribute("disabled"))return;
     playClickSound();
+    // Sidebar navigation must remain spatially stable: no ripple/pulse DOM mutation.
+    if(target.closest("#mainNav"))return;
     if(target.matches("button,a,[role='button'],summary"))addRipple(target,event);
   },{passive:true});
 
